@@ -53,7 +53,7 @@ async def get_meal_plans(email: str):
 
 
 @router.get("/product/{barcode}")
-async def search_products(barcode: str):
+async def get_product_by_barcode(barcode: str):
     product = await food_service.get_product_by_barcode(barcode)
 
     if not product:
