@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+/* Налаштовуємо базові змінні для проекту */
+:root {
+  --background: #ffffff;
+  --foreground: #1c1c1e; /* Трішки м'якший чорний для преміального вигляду */
+}
+
+/* Налаштування теми Tailwind v4 */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  
+  /* Додамо наші яскраві кольори прямо сюди */
+  --color-type-1: #FF4757; /* Соковитий червоний */
+  --color-type-2: #2ED573; /* Яскравий зелений */
+  --color-type-3: #1E90FF; /* Глибокий синій */
+  --color-type-4: #FFA502; /* Насичений помаранчевий */
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', sans-serif; /* Якщо встановиш Inter, буде взагалі топ */
+  -webkit-font-smoothing: antialiased;
+}
