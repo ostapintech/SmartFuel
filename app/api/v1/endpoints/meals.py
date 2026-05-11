@@ -1,44 +1,43 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from app.core.auth import get_current_user
 from app.core.database import db_instance
 from app.services.llm_service import LLMService
 from app.services.meal_generator import MealGeneratorService
 from app.services.openfood_service import OpenFoodService
-from app.schemas.meal_schema import MealPlanSave
+from app.schemas.meal_schema import SavedMealPlan
+from bson import ObjectId
 
 router = APIRouter()
 food_service = OpenFoodService()
 
-@router.post("/generate-plan/{email}")
-async def generate_meal_plan(email: str):
-    users_collection = db_instance.db["users"]
 
-    user = await users_collection.find_one({"email": email})
-    if not user:
-        raise HTTPException(status_code=404, detail="Користувача не знайдено")
+@router.post("/generate-and-save")  # Більше ніяких {email} у шляху!
+async def generate_and_save_plan(current_user: dict = Depends(get_current_user)):
+    # Весь цей код виконається автоматично для того, хто залогінений
+    meals_collection = db_instance.db["user_meals"]
 
-    profile = user.get("profile", {})
-    target_calories = profile.get("target_calories", 2000)
-
+    profile = current_user.get("profile", {})
     allowed_products = await LLMService.get_allowed_products(profile)
-    meal_plan = await MealGeneratorService.generate_meal_plan(
+
+    target_calories = profile.get("target_calories", 2000)
+    meal_text = await MealGeneratorService.generate_meal_plan(
         allowed_products, target_calories
     )
 
+    new_plan = SavedMealPlan(
+        user_id=str(current_user["_id"]),
+        target_calories=target_calories,
+        allowed_products=allowed_products,
+        meal_plan_text=meal_text
+    )
+
+    result = await meals_collection.insert_one(new_plan.model_dump())
+
     return {
-        "user_email": email,
-        "target_calories": target_calories,
-        "allowed_products": allowed_products,
-        "meal_plan": meal_plan
+        "message": f"Привіт, {current_user['email']}! Твій план згенеровано.",
+        "plan_id": str(result.inserted_id),
+        "meal_plan": meal_text
     }
-
-
-@router.post("/save-plan")
-async def save_meal_plan(plan: MealPlanSave):
-    meals_collection = db_instance.db["saved_meals"]
-    result = await meals_collection.insert_one(plan.model_dump())
-    return {"message": "Раціон успішно збережено", "plan_id": str(result.inserted_id)}
-
-
 @router.get("/get-plans/{email}")
 async def get_meal_plans(email: str):
     meals_collection = db_instance.db["saved_meals"]
@@ -76,3 +75,22 @@ async def search_food(query: str):
         return {"message": "Нічого не знайдено", "results": []}
 
     return {"results": results}
+
+
+@router.get("/history")
+async def get_user_history(current_user: dict = Depends(get_current_user)):
+    """
+    Повертає історію раціонів лише для поточного користувача.
+    """
+    meals_collection = db_instance.db["user_meals"]
+
+    # Використовуємо ID з токена для пошуку
+    user_id = str(current_user["_id"])
+
+    cursor = meals_collection.find({"user_id": user_id}).sort("created_at", -1)
+    history = await cursor.to_list(length=20)
+
+    for item in history:
+        item["_id"] = str(item["_id"])
+
+    return {"user": current_user["email"], "history": history}

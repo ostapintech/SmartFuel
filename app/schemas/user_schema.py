@@ -11,7 +11,7 @@ class UserResponse(BaseModel):
     email: EmailStr
     anthropometry: Anthropometry
     profile: UserProfile
-    is_active: bool
+    is_active: bool = True
 
     class Config:
         from_attributes = True
