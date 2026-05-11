@@ -53,7 +53,7 @@ async def get_meal_plans(email: str):
 
 
 @router.get("/product/{barcode}")
-async def get_product_info(barcode: str):
+async def search_products(barcode: str):
     product = await food_service.get_product_by_barcode(barcode)
 
     if not product:
@@ -63,3 +63,16 @@ async def get_product_info(barcode: str):
         )
 
     return {"product": product}
+
+
+@router.get("/search")
+async def search_food(query: str):
+    if not query or len(query) < 3:
+        raise HTTPException(status_code=400, detail="Запит має бути не менше 3 символів")
+
+    results = await food_service.search_products_by_name(query)
+
+    if not results:
+        return {"message": "Нічого не знайдено", "results": []}
+
+    return {"results": results}

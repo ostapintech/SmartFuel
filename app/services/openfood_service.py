@@ -1,6 +1,6 @@
 import openfoodfacts
 import asyncio
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 
 class OpenFoodService:
@@ -35,3 +35,41 @@ class OpenFoodService:
         except Exception as e:
             print(f"Помилка пошуку продуктів: {e}")
             return []
+
+    async def search_products_by_name(self, query: str, page_size: int = 10) -> List[Dict[str, Any]]:
+        """
+        Шукає продукти за назвою з урахуванням екологічних метрик.
+        """
+        try:
+            # Використовуємо asyncio.to_thread для синхронного методу бібліотеки
+            search_result = await asyncio.to_thread(
+                self.api.product.text_search,
+                query,
+                page_size=page_size
+            )
+
+            products = search_result.get("products", [])
+            processed_results = []
+
+            for p in products:
+                # Формуємо чистий об'єкт для фронтенду/логіки
+                processed_results.append({
+                    "id": p.get("_id"),
+                    "name": p.get("product_name"),
+                    "brand": p.get("brands"),
+                    "image": p.get("image_front_url"),
+                    "ecoscore": p.get("ecoscore_grade", "unknown").upper(),
+                    "nutriscore": p.get("nutriscore_grade", "unknown").upper(),
+                    "is_organic": "en:organic" in p.get("labels_tags", []),
+                    "categories": p.get("categories", "").split(",")[:3]  # перші 3 категорії
+                })
+
+            # Сортуємо: спочатку екологічні (A, B), потім решта
+            processed_results.sort(key=lambda x: x['ecoscore'] if x['ecoscore'] != "UNKNOWN" else "Z")
+
+            return processed_results
+
+        except Exception as e:
+            print(f"Помилка під час пошуку: {e}")
+            return []
+
