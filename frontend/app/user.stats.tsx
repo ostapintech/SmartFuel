@@ -19,7 +19,7 @@ export default function UserStats() {
 
   // Розрахунок калорій
   const bmr = gender === 'male' 
-    ? 10 * weight + 6.25 * height - 5 * age + 5 
+    ? 10 * weight + 6.25 * height - 5 * age + 5
     : 10 * weight + 6.25 * height - 5 * age - 161;
   
   const totalCalories = Math.round(bmr * activity);
