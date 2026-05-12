@@ -1,10 +1,10 @@
 from fastapi import APIRouter, HTTPException, Depends
-from app.core.auth import get_current_user
-from app.core.database import db_instance
-from app.services.llm_service import LLMService
-from app.services.meal_generator import MealGeneratorService
-from app.services.openfood_service import OpenFoodService
-from app.schemas.meal_schema import SavedMealPlan
+from backend.core.auth import get_current_user
+from backend.core.database import db_instance
+from backend.services.llm_service import LLMService
+from backend.services.meal_generator import MealGeneratorService
+from backend.services.openfood_service import OpenFoodService
+from backend.schemas.meal_schema import SavedMealPlan
 from bson import ObjectId
 
 router = APIRouter()

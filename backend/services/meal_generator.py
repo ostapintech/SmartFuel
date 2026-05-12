@@ -1,5 +1,5 @@
 from openai import OpenAI
-from app.core.config import settings
+from backend.core.config import settings
 
 client = OpenAI(
     base_url="https://api.groq.com/openai/v1",

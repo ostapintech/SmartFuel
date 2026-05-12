@@ -2,8 +2,8 @@ import jwt
 from datetime import datetime, timedelta
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from app.core.config import settings
-from app.core.database import db_instance
+from backend.core.config import settings
+from backend.core.database import db_instance
 
 # Секретний ключ для шифрування (додай у .env або залиш так для тесту)
 SECRET_KEY = "SUPER_SECRET_SMARTFUEL_KEY"

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from app.models.user import Anthropometry, UserProfile
+from backend.models.user import Anthropometry, UserProfile
 
 class UserCreate(BaseModel):
     email: EmailStr

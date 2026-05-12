@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from fastapi import FastAPI
-from app.core.database import connect_to_mongo, close_mongo_connection
-from app.api.v1.router import api_router
+from backend.core.database import connect_to_mongo, close_mongo_connection
+from backend.api.v1.router import api_router
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(

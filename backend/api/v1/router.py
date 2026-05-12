@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, profile, meals
+from backend.api.v1.endpoints import auth, profile, meals
 
 api_router = APIRouter()
 api_router.include_router(auth.router, tags=["auth"])

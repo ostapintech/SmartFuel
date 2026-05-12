@@ -1,6 +1,6 @@
 import json
 from openai import OpenAI
-from app.core.config import settings
+from backend.core.config import settings
 
 # Підключаємося до Groq (або OpenAI) через OpenAI-сумісний клієнт
 client = OpenAI(

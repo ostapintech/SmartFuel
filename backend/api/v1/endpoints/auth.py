@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException, status, Depends
-from app.schemas.user_schema import UserCreate, UserResponse
+from backend.schemas.user_schema import UserCreate, UserResponse
 from fastapi.security import OAuth2PasswordRequestForm
-from app.core.database import db_instance
+from backend.core.database import db_instance
 from passlib.context import CryptContext
-from app.core.auth import create_access_token
+from backend.core.auth import create_access_token
 from pydantic import BaseModel, EmailStr
 
 router = APIRouter()

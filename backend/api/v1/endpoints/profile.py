@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, status, Depends
-from app.core.auth import get_current_user
-from app.models.user import UserProfile, Anthropometry
-from app.core.database import db_instance
+from backend.core.auth import get_current_user
+from backend.models.user import UserProfile, Anthropometry
+from backend.core.database import db_instance
 
 router = APIRouter()
 
