@@ -17,11 +17,14 @@ async def generate_and_save_plan(current_user: dict = Depends(get_current_user))
     meals_collection = db_instance.db["user_meals"]
 
     profile = current_user.get("profile", {})
+    blood_type = profile.get("blood_type", "Unknown")
     allowed_products = await LLMService.get_allowed_products(profile)
 
     target_calories = profile.get("target_calories", 2000)
     meal_text = await MealGeneratorService.generate_meal_plan(
-        allowed_products, target_calories
+        allowed_products,
+        target_calories,
+        blood_type  # Передаємо групу крові сюди
     )
 
     new_plan = SavedMealPlan(

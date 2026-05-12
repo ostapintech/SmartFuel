@@ -10,19 +10,65 @@ class OpenFoodService:
             user_agent="SmartfuelApp/1.0 (University Project)"
         )
 
-    async def get_product_by_barcode(self, barcode: str) -> Optional[Dict[str, Any]]:
-        """Отримує інформацію про продукт за штрих-кодом."""
-        try:
-            # Викликаємо метод через api.product.get() та загортаємо у фоновий потік,
-            # щоб не блокувати асинхронний цикл FastAPI
-            product_info = await asyncio.to_thread(self.api.product.get, barcode)
+    def _clean_product_data(self, p: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Перетворює величезний JSON від OFF у компактний формат SmartFuel.
+        """
+        # Аналіз інгредієнтів для пальмової олії
+        tags = p.get("ingredients_analysis_tags", [])
+        is_palm_oil_free = "en:palm-oil-free" in tags
 
-            if not product_info:
+        # Обробка пакування
+        packaging_text = p.get("packaging", "Інформація відсутня")
+
+        return {
+            "product_name": p.get("product_name", "Невідомий товар"),
+            "brand": p.get("brands", "Невідомий бренд"),
+            "image": p.get("image_front_url"),
+            "eco_data": {
+                "ecoscore_grade": p.get("ecoscore_grade", "unknown").upper(),
+                "labels": p.get("labels_tags", []),
+                "is_palm_oil_free": is_palm_oil_free,
+                "origins": p.get("origins_tags", [])
+            },
+            "packaging": {
+                "material": "Пластик/PET" if "pet" in packaging_text.lower() else "Змішане",
+                "recyclable": "en:recyclable" in p.get("packaging_tags", []),
+                "info": packaging_text
+            },
+            "quality": {
+                "additives_count": len(p.get("additives_tags", [])),
+                "nova_group": p.get("nova_group")
+            },
+            "nutriments": p.get("nutriments", {})  # Калорії знадобляться для розрахунку раціону
+        }
+
+    async def get_product_by_barcode(self, barcode: str) -> Optional[Dict[str, Any]]:
+        try:
+            # Отримуємо сирі дані
+            raw_data = await asyncio.to_thread(self.api.product.get, barcode)
+
+            # ДЕБАГ-ЛОГІКА:
+            # Перевіряємо, де саме лежать дані про продукт
+            product_json = None
+
+            if isinstance(raw_data, dict):
+                # Варіант 1: Дані лежать у ключі 'product'
+                if "product" in raw_data:
+                    product_json = raw_data["product"]
+                # Варіант 2: Об'єкт raw_data і є самим продуктом
+                elif "product_name" in raw_data:
+                    product_json = raw_data
+
+            if not product_json:
+                print(f"Продукт {barcode} не знайдено в базі OFF")
                 return None
 
-            return product_info
+            # Повертаємо чистий JSON через наш маппер
+            return self._clean_product_data(product_json)
+
         except Exception as e:
-            print(f"Помилка отримання продукту: {e}")
+            print(f"Помилка в OpenFoodService: {e}")
             return None
 
     async def search_products(self, query: str) -> list:
