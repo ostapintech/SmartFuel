@@ -11,22 +11,27 @@ router = APIRouter()
 food_service = OpenFoodService()
 
 
-@router.post("/generate-and-save")  # Більше ніяких {email} у шляху!
+@router.post("/generate-and-save")
 async def generate_and_save_plan(current_user: dict = Depends(get_current_user)):
-    # Весь цей код виконається автоматично для того, хто залогінений
     meals_collection = db_instance.db["user_meals"]
 
-    profile = current_user.get("profile", {})
-    blood_type = profile.get("blood_type", "Unknown")
-    allowed_products = await LLMService.get_allowed_products(profile)
+    # Міняємо це: дістаємо дані прямо з current_user, а не з profile
+    blood_type = current_user.get("blood_type", "Unknown")
+    
+    # Якщо target_calories немає в базі, ставимо 2000, щоб Pydantic не лаявся
+    target_calories = current_user.get("target_calories")
+    if target_calories is None:
+        target_calories = 2000 
 
-    target_calories = profile.get("target_calories", 2000)
+    # Передаємо весь об'єкт користувача в сервіс
+    allowed_products = await LLMService.get_allowed_products(current_user)
+
     meal_text = await MealGeneratorService.generate_meal_plan(
         allowed_products,
         target_calories,
-        blood_type  # Передаємо групу крові сюди
+        blood_type
     )
-
+    
     new_plan = SavedMealPlan(
         user_id=str(current_user["_id"]),
         target_calories=target_calories,
