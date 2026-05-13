@@ -1,84 +1,85 @@
 "use client";
-
 import { useState } from "react";
-import { useRouter } from 'next/navigation'; // Додав для редиректу
 import { authService } from "../../services/auth";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function RegisterPage() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState(""); // Додав ім'я, зазвичай воно є в UserCreate
   const router = useRouter();
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+    height: 170,
+    weight: 70,
+    age: 25,
+    gender: "male",
+    user_type: "Звичайна людина",
+    goal: "утримання ваги",
+    blood_type: "1",
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // Тут ми викликаємо саме REGISTER
-      const data = await authService.register({ email, password, fullName });
-      
-      if (data) {
-        alert("Реєстрація успішна! Тепер увійдіть.");
-        router.push('/login'); // Після реєстрації кидаємо на логін
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Помилка реєстрації. Можливо, такий email вже зайнятий.");
+      // ПЕРЕТВОРЮЄМО ПЛОСКУ ФОРМУ У ВКЛАДЕНУ СТРУКТУРУ ДЛЯ FastAPI
+      const payload = {
+        email: formData.email,
+        password: formData.password,
+        anthropometry: {
+          height: Number(formData.height),
+          weight: Number(formData.weight),
+          age: Number(formData.age),
+          gender: formData.gender,
+        },
+        profile: {
+          user_type: formData.user_type,
+          goal: formData.goal,
+          blood_type: formData.blood_type,
+          health_conditions: [], // Можна додати поля в форму пізніше
+        }
+      };
+
+      await authService.register(payload);
+      alert("Реєстрація успішна! Тепер увійдіть.");
+      router.push("/login");
+    } catch (err: any) {
+      alert("Помилка реєстрації: " + err.message);
     }
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-50">
-      <form 
-        onSubmit={handleSubmit} 
-        className="bg-white p-8 rounded shadow-md w-full max-w-md border border-gray-200"
-      >
-        <h1 className="text-2xl font-bold mb-6 text-center text-black">Реєстрація у SmartFuel</h1>
-        
-        <div className="mb-4">
-          <label className="block text-gray-700 mb-2">Повне ім&apos;я</label>
-          <input
-            type="text"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            className="w-full p-2 border rounded text-black"
-            placeholder="Іван Іванов"
-            required
-          />
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4 text-black">
+      <form onSubmit={handleSubmit} className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md space-y-4">
+        <h1 className="text-2xl font-bold text-center text-blue-600">Реєстрація SmartFuel</h1>
+
+        <input type="email" placeholder="Email" className="w-full p-2 border rounded"
+          onChange={e => setFormData({...formData, email: e.target.value})} required />
+
+        <input type="password" placeholder="Пароль" className="w-full p-2 border rounded"
+          onChange={e => setFormData({...formData, password: e.target.value})} required />
+
+        <div className="grid grid-cols-3 gap-2">
+          <input type="number" placeholder="Зріст" className="p-2 border rounded"
+            onChange={e => setFormData({...formData, height: Number(e.target.value)})} />
+          <input type="number" placeholder="Вага" className="p-2 border rounded"
+            onChange={e => setFormData({...formData, weight: Number(e.target.value)})} />
+          <input type="number" placeholder="Вік" className="p-2 border rounded"
+            onChange={e => setFormData({...formData, age: Number(e.target.value)})} />
         </div>
 
-        <div className="mb-4">
-          <label className="block text-gray-700 mb-2">Email</label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full p-2 border rounded text-black"
-            placeholder="example@mail.com"
-            required
-          />
-        </div>
+        <select className="w-full p-2 border rounded" onChange={e => setFormData({...formData, blood_type: e.target.value})}>
+          <option value="1">I (0) група крові</option>
+          <option value="2">II (A) група крові</option>
+          <option value="3">III (B) група крові</option>
+          <option value="4">IV (AB) група крові</option>
+        </select>
 
-        <div className="mb-6">
-          <label className="block text-gray-700 mb-2">Пароль</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full p-2 border rounded text-black"
-            placeholder="••••••••"
-            required
-          />
-        </div>
-
-        <button
-          type="submit"
-          className="w-full bg-green-600 text-white p-2 rounded hover:bg-green-700 transition"
-        >
-          Зареєструватися
+        <button type="submit" className="w-full bg-green-600 text-white p-3 rounded-lg font-bold hover:bg-green-700">
+          Створити акаунт
         </button>
 
-        <p className="mt-4 text-center text-gray-600">
-          Вже маєте акаунт? <a href="/login" className="text-blue-600 hover:underline">Увійти</a>
+        <p className="text-center text-sm">
+          Вже є акаунт? <Link href="/login" className="text-blue-500">Увійти</Link>
         </p>
       </form>
     </div>

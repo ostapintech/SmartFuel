@@ -1,35 +1,33 @@
 "use client";
-
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
   token: string | null;
   login: (token: string) => void;
   logout: () => void;
-  isAuthenticated: boolean;
+  isLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  // Використовуємо функцію для ініціалізації стану одним махом
-  const [token, setToken] = useState<string | null>(() => {
-    // Перевіряємо, чи ми в браузері (бо на сервері localStorage немає)
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("token");
-    }
-    return null;
-  });
-
+  const [token, setToken] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
-  const login = (newToken: string) => {
-    localStorage.setItem("token", newToken);
-    setToken(newToken);
-    router.push('/profile');
-  };
+  useEffect(() => {
+    const savedToken = localStorage.getItem("token");
+    if (savedToken) setToken(savedToken);
+    setIsLoading(false);
+  }, []);
 
+  const login = (newToken: string) => {
+  localStorage.setItem("token", newToken);
+  setToken(newToken);
+  // Важливо: спочатку оновлюємо стан, а потім редірект
+  setTimeout(() => router.push('/'), 100);
+};
   const logout = () => {
     localStorage.removeItem("token");
     setToken(null);
@@ -37,21 +35,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ 
-      token, 
-      login, 
-      logout, 
-      isAuthenticated: !!token 
-    }}>
+    <AuthContext.Provider value={{ token, login, logout, isLoading }}>
       {children}
     </AuthContext.Provider>
   );
 }
-// Хук для зручного використання в компонентах
+
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within AuthProvider');
   return context;
 };
