@@ -18,6 +18,13 @@ const activityLevels = [
   { id: 'active', label: 'Активний', desc: 'Фізична робота', factor: 1.8, icon: '🏋️' },
 ];
 
+// НОВИЙ ПАРАМЕТР: МЕТА
+const goalLevels = [
+  { id: 'lose', label: 'Схуднення', factor: 0.85, icon: '📉' },
+  { id: 'maintain', label: 'Підтримка', factor: 1.0, icon: '⚖️' },
+  { id: 'gain', label: 'Набір маси', factor: 1.15, icon: '📈' },
+];
+
 const WelcomeOverlay = ({ onComplete }: { onComplete: () => void }) => {
   useEffect(() => {
     const timer = setTimeout(onComplete, 2500);
@@ -58,6 +65,7 @@ export default function Home() {
   const [mealPlan, setMealPlan] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState(activityLevels[0]);
+  const [selectedGoal, setSelectedGoal] = useState(goalLevels[1]); // Мета за замовчуванням
   const [notification, setNotification] = useState<{ msg: string, type: 'info' | 'error' | 'success' } | null>(null);
   
   const [barcode, setBarcode] = useState('');
@@ -66,6 +74,12 @@ export default function Home() {
   
   const [swapQuery, setSwapQuery] = useState('');
   const [swapResult, setSwapResult] = useState<string | null>(null);
+
+  // СТАНИ ДЛЯ РЕДАГУВАННЯ
+  const [isEditing, setIsEditing] = useState(false);
+  const [weight, setWeight] = useState('');
+  const [height, setHeight] = useState('');
+  const [birthYear, setBirthYear] = useState('1995');
 
   const showNotification = (msg: string, type: 'info' | 'error' | 'success' = 'info') => {
     setNotification({ msg, type });
@@ -81,6 +95,9 @@ export default function Home() {
         if (profileRes.ok) {
           const data = await profileRes.json();
           setUserData(data);
+          setWeight(data.weight?.toString() || '');
+          setHeight(data.height?.toString() || '');
+          setBirthYear(data.birth_year?.toString() || '1995');
           if (data.blood_type) setSelectedType(data.blood_type);
         }
         const historyRes = await fetch('http://192.168.1.114:8000/api/v1/meals/history', {
@@ -101,7 +118,44 @@ export default function Home() {
     if (!isLoading && !token) router.replace('/login');
   }, [token, isLoading, router]);
 
-  const dynamicKcal = selectedType ? Math.round(bloodDietData[selectedType].kcal * selectedActivity.factor) : 0;
+  // РОЗРАХУНОК ККАЛ (ОНОВЛЕНО З МЕТОЮ)
+  const dynamicKcal = (() => {
+    const w = Number(weight);
+    const h = Number(height);
+    const age = new Date().getFullYear() - Number(birthYear);
+    if (!w || !h || !age || age < 0) return selectedType ? Math.round(bloodDietData[selectedType].kcal * selectedGoal.factor) : 0;
+
+    const bmr = (10 * w) + (6.25 * h) - (5 * age) + 5;
+    const bloodMod = selectedType === 'II (A)' ? 0.95 : selectedType === 'I (0)' ? 1.05 : 1.0;
+    
+    // Формула: BMR * активність * група крові * МЕТА
+    return Math.round(bmr * selectedActivity.factor * bloodMod * selectedGoal.factor);
+  })();
+
+  const handleUpdateProfile = async () => {
+    try {
+      const res = await fetch('http://192.168.1.114:8000/api/v1/users/update-profile', {
+        method: 'PUT',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify({ 
+          weight: Number(weight), 
+          height: Number(height),
+          birth_year: Number(birthYear),
+          blood_type: selectedType,
+          goal: selectedGoal.id // Додаємо мету в запит
+        })
+      });
+      if (res.ok) {
+        setIsEditing(false);
+        showNotification("Дані збережено", "success");
+      } else {
+        showNotification("Помилка збереження", "error");
+      }
+    } catch (e) { showNotification("Помилка мережі", "error"); }
+  };
 
   const parseMealPlan = (text: string) => {
     const meals = { breakfast: '', lunch: '', dinner: '' };
@@ -123,7 +177,6 @@ export default function Home() {
   const toggleBloodType = (type: string) => {
     if (selectedType === type) {
       setSelectedType(null);
-      showNotification("Вибір скасовано", "info");
     } else {
       setSelectedType(type);
     }
@@ -134,16 +187,21 @@ export default function Home() {
     setIsScanning(true);
     setScannedProduct(null);
     try {
-      const response = await fetch(`http://192.168.1.114:8000/api/v1/meals/product/${barcode}`, {
+      const response = await fetch(`http://192.168.1.114:8000/api/v1/meals/product/${barcode.trim()}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await response.json();
-      if (response.ok) {
+      if (response.ok && data.product) {
         setScannedProduct(data.product);
         showNotification("Продукт знайдено", "success");
-      } else { showNotification("Продукт не знайдено", "error"); }
-    } catch (e) { showNotification("Помилка зв'язку з API", "error"); }
-    finally { setIsScanning(false); }
+      } else { 
+        showNotification(data.detail || "Продукт не знайдено", "error"); 
+      }
+    } catch (e) { 
+      showNotification("Помилка зв'язку з сервером", "error"); 
+    } finally { 
+      setIsScanning(false); 
+    }
   };
 
   const handleGeneratePlan = async () => {
@@ -162,7 +220,6 @@ export default function Home() {
     finally { setIsGenerating(false); }
   };
 
-  // ЛОГІКА РОЗУМНОЇ ЗАМІНИ
   const handleSmartSwapAction = () => {
     if (!swapQuery) return;
     const q = swapQuery.toLowerCase();
@@ -171,7 +228,7 @@ export default function Home() {
 
     if (q.match(/бургер|фрі|піца|хот|дог|шаурма|мак|кфс/)) {
       const tips: any = {
-        'I (0)': "🍔 Фастфуд — це глютенова пастка. Заміни його на соковитий стейк (яловичина/телятина) з листям салату. Тобі потрібен чистий білок!",
+        'I (0)': "🍔 Фастфуд — це глютенова пастка. Заміни його на соковитий стейк з салатом. Тобі потрібен чистий білок!",
         'II (A)': "🍔 Твій шлунок не любить важке м'ясо в тісті. Обирай овочевий рол, фалафель або вегетаріанський бургер з сочевиці.",
         'III (B)': "🍔 Уникай курки в паніровці. Краще візьми кебаб з баранини або кролика з великою порцією овочів.",
         'IV (AB)': "🍔 Твій варіант — рибний бургер або сендвіч з тунцем та зеленню. Уникай червоного м'яса в булках."
@@ -180,24 +237,15 @@ export default function Home() {
     } 
     else if (q.match(/цукор|цукерки|торт|шоколад|печиво|мед/)) {
       const tips: any = {
-        'I (0)': "🍩 Цукор гальмує твій метаболізм. Заміни на чорнослив, інжир або волоські горіхи.",
-        'II (A)': "🍩 Солодощі забивають судини. Твій десерт — свіжі ягоди, ананас або вишневий сік.",
-        'III (B)': "🍩 Тобі підходить темний шоколад (помірно) або запечене яблуко з корицею.",
-        'IV (AB)': "🍩 Обирай фрукти з низькою кислотністю: ківі, виноград або горіхи кеш'ю."
-      };
-      result = tips[type] || tips['I (0)'];
-    }
-    else if (q.match(/кола|сік|пепсі|вода|чай|напій|енергетик/)) {
-      const tips: any = {
-        'I (0)': "🥤 Газовані напої — ворог №1. Пий мінеральну воду або чай з шипшини.",
-        'II (A)': "🥤 Кава — тільки вранці. Вдень пий зелений чай або воду з лимоном.",
-        'III (B)': "🥤 Тобі ідеально підходять трав'яні чаї (солодка, шавлія) та чиста вода.",
-        'IV (AB)': "🥤 Твій вибір — склянка води з соком алое або слабка зелена кава."
+        'I (0)': "🍩 Цукор гальмує твій метаболізм. Заміни на чорнослив або горіхи.",
+        'II (A)': "🍩 Солодощі забивають судини. Твій десерт — свіжі ягоди або ананас.",
+        'III (B)': "🍩 Тобі підходить темний шоколад або запечене яблуко з корицею.",
+        'IV (AB)': "🍩 Обирай фрукти з низькою кислотністю: ківі або горіхи кеш'ю."
       };
       result = tips[type] || tips['I (0)'];
     }
     else {
-      result = `💡 Для групи ${type}: замість "${swapQuery}" краще спожити продукт з високим вмістом білка (для 0) або клітковини (для А). Уникай обробленої їжі.`;
+      result = `💡 Для групи ${type}: замість "${swapQuery}" краще спожити продукт з високим вмістом білка (для 0) або клітковини (для А).`;
     }
     setSwapResult(result);
   };
@@ -241,19 +289,31 @@ export default function Home() {
           <h1 className="text-8xl md:text-[10rem] font-black mb-4 tracking-tighter italic leading-none drop-shadow-2xl">
             Smart <span className="text-red-600 underline decoration-8">Fuel</span>
           </h1>
-          {userData && (
-            <div className="flex flex-wrap justify-center gap-4 text-gray-500 font-black uppercase italic text-[11px] tracking-widest">
-              <span>Водій: <span className="text-black">{userData.email}</span></span>
-              <span className="text-red-600">|</span>
-              <span>Зріст: {userData.height}см</span>
-              <span className="text-red-600">|</span>
-              <span>Вага: {userData.weight}кг</span>
-            </div>
-          )}
+          
+          <div className="flex flex-col items-center gap-4">
+            {isEditing ? (
+              <div className="flex flex-wrap justify-center gap-3 bg-white/40 p-4 rounded-[2rem] border border-white shadow-2xl animate-in zoom-in">
+                <input type="number" placeholder="Рік" value={birthYear} onChange={e => setBirthYear(e.target.value)} className="w-20 p-3 rounded-xl font-black bg-white outline-none border-2 border-transparent focus:border-red-600" />
+                <input type="number" placeholder="Вага" value={weight} onChange={e => setWeight(e.target.value)} className="w-20 p-3 rounded-xl font-black bg-white outline-none border-2 border-transparent focus:border-red-600" />
+                <input type="number" placeholder="Зріст" value={height} onChange={e => setHeight(e.target.value)} className="w-20 p-3 rounded-xl font-black bg-white outline-none border-2 border-transparent focus:border-red-600" />
+                <button onClick={handleUpdateProfile} className="bg-red-600 text-white px-6 rounded-xl font-black uppercase text-[10px]">Зберегти</button>
+                <button onClick={() => setIsEditing(false)} className="bg-black text-white px-4 rounded-xl font-black uppercase text-[10px]">✕</button>
+              </div>
+            ) : (
+              <div className="flex flex-wrap justify-center gap-4 text-gray-500 font-black uppercase italic text-[11px] tracking-widest bg-white/30 px-6 py-2 rounded-full border border-white/50 backdrop-blur-sm">
+                <span>Водій: <span className="text-black">{userData?.email}</span></span>
+                <span className="text-red-600">|</span>
+                <span>Зріст: {height}см</span>
+                <span className="text-red-600">|</span>
+                <span>Вага: {weight}кг</span>
+                <button onClick={() => setIsEditing(true)} className="text-black hover:text-red-600 transition-colors ml-2">⚙️ Редагувати</button>
+              </div>
+            )}
+          </div>
         </header>
 
         <section className="mb-14">
-            <h3 className="text-sm font-black text-gray-400 uppercase italic mb-6 text-center tracking-widest">Виберіть групу крові для розрахунку:</h3>
+            <h3 className="text-sm font-black text-gray-400 uppercase italic mb-6 text-center tracking-widest">Виберіть групу крові:</h3>
             <div className="grid grid-cols-4 gap-4 px-2">
              {Object.keys(bloodDietData).map(type => (
                <button
@@ -269,6 +329,29 @@ export default function Home() {
                </button>
              ))}
            </div>
+        </section>
+
+        {/* СЕКЦІЯ МЕТИ */}
+        <section className="mb-14">
+          <h3 className="text-2xl font-black mb-8 uppercase italic flex items-center tracking-tighter">
+             <span className="text-red-600 mr-3 text-3xl">🎯</span> Ваша мета:
+          </h3>
+          <div className="grid grid-cols-3 gap-6">
+            {goalLevels.map((goal) => (
+              <button
+                key={goal.id}
+                onClick={() => setSelectedGoal(goal)}
+                className={`p-8 rounded-[3rem] transition-all border-4 shadow-xl ${
+                  selectedGoal.id === goal.id 
+                  ? 'bg-black text-white border-red-600 scale-105 shadow-red-500/20' 
+                  : 'bg-white/70 backdrop-blur-xl text-gray-400 border-transparent hover:border-gray-300'
+                }`}
+              >
+                <span className="text-5xl block mb-3">{goal.icon}</span>
+                <p className="font-black text-sm uppercase">{goal.label}</p>
+              </button>
+            ))}
+          </div>
         </section>
 
         {selectedType && (
@@ -315,7 +398,7 @@ export default function Home() {
 
         <section className="mb-14">
           <h3 className="text-2xl font-black mb-8 uppercase italic flex items-center tracking-tighter">
-             <span className="text-red-600 mr-3 text-3xl">⚡️</span> Ваш режим сьогодні:
+             <span className="text-red-600 mr-3 text-3xl">⚡️</span> Режим сьогодні:
           </h3>
           <div className="grid grid-cols-3 gap-6">
             {activityLevels.map((level) => (
@@ -346,20 +429,21 @@ export default function Home() {
           <div className="flex justify-between items-center mb-10">
             <h3 className="text-2xl font-black flex items-center uppercase italic tracking-tighter">
                 <span className="bg-blue-600 text-white w-10 h-10 rounded-xl flex items-center justify-center mr-4 text-xs italic font-black shadow-lg">SCAN</span>
-                Аналіз вмісту
+                Аналіз продукту
             </h3>
             {(barcode || scannedProduct) && (
-                <button onClick={() => { setBarcode(''); setScannedProduct(null); }} className="text-gray-400 hover:text-red-600 font-black text-xs uppercase italic transition-colors">Очистити ✕</button>
+                <button onClick={() => { setBarcode(''); setScannedProduct(null); }} className="text-gray-400 hover:text-red-600 font-black text-xs uppercase italic transition-colors">✕</button>
             )}
           </div>
           
           <div className="flex gap-4 mb-10">
             <input 
               type="text" 
-              placeholder="Штрих-код (напр. 3017620422003)" 
-              className="flex-1 p-6 bg-gray-100/50 rounded-[2rem] font-black border-4 border-transparent focus:border-blue-600 focus:bg-white outline-none transition-all italic text-lg"
+              placeholder="Введіть штрих-код" 
+              className="flex-1 p-6 bg-gray-100/50 rounded-[2rem] font-black border-4 border-transparent focus:border-blue-600 outline-none transition-all italic text-lg"
               value={barcode}
               onChange={(e) => setBarcode(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearchProduct()}
             />
             <button onClick={handleSearchProduct} className="px-10 bg-blue-600 text-white rounded-[2rem] font-black uppercase text-sm shadow-xl hover:bg-blue-700 transition-all active:scale-95">
               {isScanning ? '...' : 'Пошук'}
@@ -371,28 +455,22 @@ export default function Home() {
               <div className="flex flex-col md:flex-row items-center gap-10 p-10 bg-gradient-to-br from-blue-50 to-white rounded-[3.5rem] border border-blue-100 mb-10 shadow-inner">
                 <div className="relative w-44 h-44 flex-shrink-0 bg-white rounded-[2.5rem] p-4 shadow-2xl border border-blue-50 overflow-hidden flex items-center justify-center">
                   {scannedProduct.image ? (
-                    <img 
-                      src={scannedProduct.image} 
-                      className="max-w-full max-h-full object-contain" 
-                      alt="Product"
-                    />
+                    <img src={scannedProduct.image} className="max-w-full max-h-full object-contain" alt="Product" />
                   ) : (
                     <div className="text-gray-400 font-black italic text-xs text-center">Фото відсутнє</div>
                   )}
-                  <div className="absolute -bottom-2 -right-2 bg-blue-600 text-white text-[10px] font-black px-3 py-1 rounded-lg uppercase italic shadow-lg">
-                    AI Scan
-                  </div>
+                  <div className="absolute -bottom-2 -right-2 bg-blue-600 text-white text-[10px] font-black px-3 py-1 rounded-lg uppercase italic">AI Scan</div>
                 </div>
 
                 <div className="flex-1 text-center md:text-left">
-                  <h4 className="text-4xl font-black text-blue-900 leading-tight mb-2 italic tracking-tighter">
+                  <h4 className="text-4xl font-black text-blue-900 mb-2 italic tracking-tighter">
                     {scannedProduct.product_name || "Невідомий продукт"}
                   </h4>
-                  <p className="text-blue-600 font-black mb-6 uppercase text-xs tracking-[0.3em] opacity-60 italic">
+                  <p className="text-blue-600 font-black mb-6 uppercase text-xs tracking-widest opacity-60">
                     {scannedProduct.brands || "Бренд не вказано"}
                   </p>
-                  <div className="inline-block px-6 py-3 bg-blue-600 text-white rounded-2xl font-black text-sm italic border-b-4 border-blue-800 shadow-xl">
-                      {scannedProduct.nutriments?.energy_kcal_100g < 350 ? '✅ ПІДХОДИТЬ ДЛЯ ТРАСИ' : '⚠️ УВАГА: КАЛОРІЙНО'}
+                  <div className="inline-block px-6 py-3 bg-blue-600 text-white rounded-2xl font-black text-sm italic shadow-xl">
+                      {scannedProduct.nutriments?.energy_kcal_100g < 350 ? '✅ ПІДХОДИТЬ' : '⚠️ КАЛОРІЙНО'}
                   </div>
                 </div>
               </div>
@@ -403,8 +481,6 @@ export default function Home() {
                   ['Білки', scannedProduct.nutriments?.proteins_100g || 0, 'г', 'bg-blue-50'],
                   ['Жири', scannedProduct.nutriments?.fat_100g || 0, 'г', 'bg-orange-50'],
                   ['Вуглеводи', scannedProduct.nutriments?.carbohydrates_100g || 0, 'г', 'bg-green-50'],
-                  ['Цукор', scannedProduct.nutriments?.sugars_100g || 0, 'г', 'bg-purple-50'],
-                  ['Сіль', scannedProduct.nutriments?.salt_100g || 0, 'г', 'bg-gray-50'],
                 ].map(([label, val, unit, color]) => (
                   <div key={label as string} className={`${color} p-6 rounded-[2.5rem] border border-white shadow-sm flex flex-col items-center justify-center`}>
                     <p className="text-[10px] font-black text-gray-400 uppercase mb-2 tracking-widest">{label}</p>
@@ -416,38 +492,31 @@ export default function Home() {
           )}
         </section>
 
-        {/* БЛОК РОЗУМНОЇ ЗАМІНИ */}
         <section className="bg-black p-10 rounded-[4rem] shadow-[0_50px_100px_rgba(0,0,0,0.3)] mb-16 border border-white/5 relative overflow-hidden">
           <div className="flex justify-between items-center mb-10">
             <h3 className="text-2xl font-black flex items-center uppercase italic tracking-tighter text-white">
-                <span className="bg-red-600 text-white w-10 h-10 rounded-xl flex items-center justify-center mr-4 text-xs italic font-black shadow-lg shadow-red-600/40">AI</span>
+                <span className="bg-red-600 text-white w-10 h-10 rounded-xl flex items-center justify-center mr-4 text-xs italic font-black shadow-lg">AI</span>
                 Розумна заміна
             </h3>
             {(swapQuery || swapResult) && (
-                <button onClick={() => { setSwapQuery(''); setSwapResult(null); }} className="text-gray-500 hover:text-red-600 font-black text-xs uppercase italic transition-colors">Очистити ✕</button>
+                <button onClick={() => { setSwapQuery(''); setSwapResult(null); }} className="text-gray-500 hover:text-red-600 font-black text-xs uppercase italic transition-colors">✕</button>
             )}
           </div>
           
           <div className="flex gap-4 mb-8">
             <input 
               type="text" 
-              placeholder="Що замінити? (напр: бургер, кола)" 
+              placeholder="Що замінити?" 
               className="flex-1 p-6 bg-white/5 rounded-[2rem] font-black outline-none focus:ring-4 ring-red-600/50 text-white italic text-lg border border-white/10"
               value={swapQuery}
               onChange={(e) => setSwapQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSmartSwapAction()}
             />
-            <button 
-              onClick={handleSmartSwapAction}
-              className="px-10 bg-white text-black rounded-[2rem] font-black uppercase text-sm hover:bg-gray-200 transition-all active:scale-95 shadow-xl"
-            >
-              Замінити
-            </button>
+            <button onClick={handleSmartSwapAction} className="px-10 bg-white text-black rounded-[2rem] font-black uppercase text-sm hover:bg-gray-200 transition-all active:scale-95 shadow-xl">Замінити</button>
           </div>
           
           {swapResult && (
             <div className="p-8 bg-red-600/10 border-l-8 border-red-600 rounded-[2.5rem] font-bold italic text-gray-200 animate-in slide-in-from-left-6 text-lg leading-relaxed backdrop-blur-md">
-              <p className="text-red-600 text-[10px] uppercase mb-2 tracking-[0.2em]">Порада Smart Fuel:</p>
               {swapResult}
             </div>
           )}
