@@ -87,32 +87,44 @@ export default function Home() {
   };
 
   useEffect(() => {
-    const fetchInitialData = async () => {
-      try {
-        const profileRes = await fetch('http://192.168.1.114:8000/api/v1/users/me', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (profileRes.ok) {
-          const data = await profileRes.json();
-          setUserData(data);
-          setWeight(data.weight?.toString() || '');
-          setHeight(data.height?.toString() || '');
-          setBirthYear(data.birth_year?.toString() || '1995');
-          if (data.blood_type) setSelectedType(data.blood_type);
+  const fetchInitialData = async () => {
+    try {
+      const profileRes = await fetch('http://127.0.0.1:8000/api/v1/users/me', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (profileRes.ok) {
+        const data = await profileRes.json();
+        setUserData(data);
+
+        // Звертаємося до вкладеного об'єкта profile, який ми зберігаємо в базі
+        const profile = data.profile;
+        if (profile) {
+          setWeight(profile.weight?.toString() || '');
+          setHeight(profile.height?.toString() || '');
+          setBirthYear(profile.birth_year?.toString() || '1995');
+          if (profile.blood_type) setSelectedType(profile.blood_type);
+
+          // Знаходимо та встановлюємо мету, якщо вона є
+          const savedGoal = goalLevels.find(g => g.id === profile.goal);
+          if (savedGoal) setSelectedGoal(savedGoal);
         }
-        const historyRes = await fetch('http://192.168.1.114:8000/api/v1/meals/history', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (historyRes.ok) {
-          const historyData = await historyRes.json();
-          if (historyData.history && historyData.history.length > 0) {
-            setMealPlan(historyData.history[0].meal_plan_text);
-          }
+      }
+
+      const historyRes = await fetch('http://127.0.0.1:8000/api/v1/meals/history', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (historyRes.ok) {
+        const historyData = await historyRes.json();
+        if (historyData.history && historyData.history.length > 0) {
+          setMealPlan(historyData.history[0].meal_plan_text);
         }
-      } catch (error) { console.error("Помилка синхронізації", error); }
-    };
-    if (token) fetchInitialData();
-  }, [token]);
+      }
+    } catch (error) {
+      console.error("Помилка синхронізації", error);
+    }
+  };
+  if (token) fetchInitialData();
+}, [token]);
 
   useEffect(() => {
     if (!isLoading && !token) router.replace('/login');
@@ -133,29 +145,41 @@ export default function Home() {
   })();
 
   const handleUpdateProfile = async () => {
-    try {
-      const res = await fetch('http://192.168.1.114:8000/api/v1/users/update-profile', {
-        method: 'PUT',
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json' 
-        },
-        body: JSON.stringify({ 
-          weight: Number(weight), 
+  try {
+    const res = await fetch('http://127.0.0.1:8000/api/v1/users/update-profile', {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        weight: Number(weight),
+        height: Number(height),
+        birth_year: Number(birthYear),
+        blood_type: selectedType,
+        goal: selectedGoal.id
+      })
+    });
+    if (res.ok) {
+      setIsEditing(false);
+      showNotification("Дані збережено в хмарі", "success");
+
+      // Оновлюємо userData локально, щоб інтерфейс миттєво перерендерився з новими даними
+      setUserData((prev: any) => ({
+        ...prev,
+        profile: {
+          weight: Number(weight),
           height: Number(height),
           birth_year: Number(birthYear),
           blood_type: selectedType,
-          goal: selectedGoal.id // Додаємо мету в запит
-        })
-      });
-      if (res.ok) {
-        setIsEditing(false);
-        showNotification("Дані збережено", "success");
-      } else {
-        showNotification("Помилка збереження", "error");
-      }
-    } catch (e) { showNotification("Помилка мережі", "error"); }
-  };
+          goal: selectedGoal.id
+        }
+      }));
+    } else {
+      showNotification("Помилка збереження", "error");
+    }
+  } catch (e) { showNotification("Помилка мережі", "error"); }
+};
 
   const parseMealPlan = (text: string) => {
     const meals = { breakfast: '', lunch: '', dinner: '' };
@@ -187,7 +211,7 @@ export default function Home() {
     setIsScanning(true);
     setScannedProduct(null);
     try {
-      const response = await fetch(`http://192.168.1.114:8000/api/v1/meals/product/${barcode.trim()}`, {
+      const response = await fetch(`http://127.0.0.1:8000/api/v1/meals/product/${barcode.trim()}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await response.json();
@@ -207,7 +231,7 @@ export default function Home() {
   const handleGeneratePlan = async () => {
     setIsGenerating(true);
     try {
-      const response = await fetch('http://192.168.1.114:8000/api/v1/meals/generate-and-save', {
+      const response = await fetch('http://127.0.0.1:8000/api/v1/meals/generate-and-save', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -301,11 +325,11 @@ export default function Home() {
               </div>
             ) : (
               <div className="flex flex-wrap justify-center gap-4 text-gray-500 font-black uppercase italic text-[11px] tracking-widest bg-white/30 px-6 py-2 rounded-full border border-white/50 backdrop-blur-sm">
-                <span>Водій: <span className="text-black">{userData?.email}</span></span>
-                <span className="text-red-600">|</span>
-                <span>Зріст: {height}см</span>
-                <span className="text-red-600">|</span>
-                <span>Вага: {weight}кг</span>
+              <span>Користувач: <span className="text-black">{userData?.email}</span></span>
+              <span className="text-red-600">|</span>
+              <span>Зріст: {height}см</span>
+              <span className="text-red-600">|</span>
+              <span>Вага: {weight}кг</span>
                 <button onClick={() => setIsEditing(true)} className="text-black hover:text-red-600 transition-colors ml-2">⚙️ Редагувати</button>
               </div>
             )}

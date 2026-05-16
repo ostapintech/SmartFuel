@@ -21,3 +21,10 @@ class User(BaseModel):
     anthropometry: Anthropometry
     profile: UserProfile
     is_active: bool = True
+
+class ProfileUpdateResponse(BaseModel):
+    weight: float
+    height: float
+    birth_year: int
+    blood_type: Optional[str] = None
+    goal: str

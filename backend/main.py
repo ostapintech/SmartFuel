@@ -27,6 +27,3 @@ app.include_router(api_router, prefix="/api/v1")
 def read_root():
     return {"message": "Ласкаво просимо до API SmartFuel!"}
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", reload=True, host="0.0.0.0", port=8000)

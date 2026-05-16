@@ -1,4 +1,4 @@
-const API_URL = "http://192.168.1.114:8000/api/v1";
+const API_URL = "http://127.0.0.1:8000/api/v1";
 
 // Функція для отримання токена з пам'яті браузера
 const getAuthHeader = (): HeadersInit => {

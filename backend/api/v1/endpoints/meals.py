@@ -84,7 +84,6 @@ async def search_food(query: str):
 
     return {"results": results}
 
-
 @router.get("/history")
 async def get_user_history(current_user: dict = Depends(get_current_user)):
     """
