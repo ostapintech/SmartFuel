@@ -18,7 +18,6 @@ const activityLevels = [
   { id: 'active', label: 'Активний', desc: 'Фізична робота', factor: 1.8, icon: '🏋️' },
 ];
 
-// НОВИЙ ПАРАМЕТР: МЕТА
 const goalLevels = [
   { id: 'lose', label: 'Схуднення', factor: 0.85, icon: '📉' },
   { id: 'maintain', label: 'Підтримка', factor: 1.0, icon: '⚖️' },
@@ -58,26 +57,24 @@ const Background3D = () => (
 export default function Home() {
   const { token, isLoading, logout } = useAuth();
   const router = useRouter();
-  
+
   const [showWelcome, setShowWelcome] = useState(true);
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [userData, setUserData] = useState<any>(null);
   const [mealPlan, setMealPlan] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState(activityLevels[0]);
-  const [selectedGoal, setSelectedGoal] = useState(goalLevels[1]); // Мета за замовчуванням
+  const [selectedGoal, setSelectedGoal] = useState(goalLevels[1]);
   const [notification, setNotification] = useState<{ msg: string, type: 'info' | 'error' | 'success' } | null>(null);
-  
+
   const [searchQuery, setSearchQuery] = useState('');
   const [scannedProduct, setScannedProduct] = useState<any>(null);
-  const [isScanning, setIsScanning] = useState(false);
-  const [searchResults, setSearchResults] = useState<any[]>([]); // Для списку знайдених товарів
-  const [isSearching, setIsSearching] = useState(false); // Універсальний лоадер замість isScanning
-  
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
   const [swapQuery, setSwapQuery] = useState('');
   const [swapResult, setSwapResult] = useState<string | null>(null);
 
-  // СТАНИ ДЛЯ РЕДАГУВАННЯ
   const [isEditing, setIsEditing] = useState(false);
   const [weight, setWeight] = useState('');
   const [height, setHeight] = useState('');
@@ -89,50 +86,47 @@ export default function Home() {
   };
 
   useEffect(() => {
-  const fetchInitialData = async () => {
-    try {
-      const profileRes = await fetch('http://127.0.0.1:8000/api/v1/users/me', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (profileRes.ok) {
-        const data = await profileRes.json();
-        setUserData(data);
+    const fetchInitialData = async () => {
+      try {
+        const profileRes = await fetch('http://127.0.0.1:8000/api/v1/users/me', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (profileRes.ok) {
+          const data = await profileRes.json();
+          setUserData(data);
 
-        // Звертаємося до вкладеного об'єкта profile, який ми зберігаємо в базі
-        const profile = data.profile;
-        if (profile) {
-          setWeight(profile.weight?.toString() || '');
-          setHeight(profile.height?.toString() || '');
-          setBirthYear(profile.birth_year?.toString() || '1995');
-          if (profile.blood_type) setSelectedType(profile.blood_type);
+          const profile = data.profile;
+          if (profile) {
+            setWeight(profile.weight?.toString() || '');
+            setHeight(profile.height?.toString() || '');
+            setBirthYear(profile.birth_year?.toString() || '1995');
+            if (profile.blood_type) setSelectedType(profile.blood_type);
 
-          // Знаходимо та встановлюємо мету, якщо вона є
-          const savedGoal = goalLevels.find(g => g.id === profile.goal);
-          if (savedGoal) setSelectedGoal(savedGoal);
+            const savedGoal = goalLevels.find(g => g.id === profile.goal);
+            if (savedGoal) setSelectedGoal(savedGoal);
+          }
         }
-      }
 
-      const historyRes = await fetch('http://127.0.0.1:8000/api/v1/meals/history', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (historyRes.ok) {
-        const historyData = await historyRes.json();
-        if (historyData.history && historyData.history.length > 0) {
-          setMealPlan(historyData.history[0].meal_plan_text);
+        const historyRes = await fetch('http://127.0.0.1:8000/api/v1/meals/history', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (historyRes.ok) {
+          const historyData = await historyRes.json();
+          if (historyData.history && historyData.history.length > 0) {
+            setMealPlan(historyData.history[0].meal_plan_text);
+          }
         }
+      } catch (error) {
+        console.error("Помилка синхронізації", error);
       }
-    } catch (error) {
-      console.error("Помилка синхронізації", error);
-    }
-  };
-  if (token) fetchInitialData();
-}, [token]);
+    };
+    if (token) fetchInitialData();
+  }, [token]);
 
   useEffect(() => {
     if (!isLoading && !token) router.replace('/login');
   }, [token, isLoading, router]);
 
-  // РОЗРАХУНОК ККАЛ (ОНОВЛЕНО З МЕТОЮ)
   const dynamicKcal = (() => {
     const w = Number(weight);
     const h = Number(height);
@@ -141,47 +135,45 @@ export default function Home() {
 
     const bmr = (10 * w) + (6.25 * h) - (5 * age) + 5;
     const bloodMod = selectedType === 'II (A)' ? 0.95 : selectedType === 'I (0)' ? 1.05 : 1.0;
-    
-    // Формула: BMR * активність * група крові * МЕТА
+
     return Math.round(bmr * selectedActivity.factor * bloodMod * selectedGoal.factor);
   })();
 
   const handleUpdateProfile = async () => {
-  try {
-    const res = await fetch('http://127.0.0.1:8000/api/v1/users/update-profile', {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        weight: Number(weight),
-        height: Number(height),
-        birth_year: Number(birthYear),
-        blood_type: selectedType,
-        goal: selectedGoal.id
-      })
-    });
-    if (res.ok) {
-      setIsEditing(false);
-      showNotification("Дані збережено в хмарі", "success");
-
-      // Оновлюємо userData локально, щоб інтерфейс миттєво перерендерився з новими даними
-      setUserData((prev: any) => ({
-        ...prev,
-        profile: {
+    try {
+      const res = await fetch('http://127.0.0.1:8000/api/v1/users/update-profile', {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
           weight: Number(weight),
           height: Number(height),
           birth_year: Number(birthYear),
           blood_type: selectedType,
           goal: selectedGoal.id
-        }
-      }));
-    } else {
-      showNotification("Помилка збереження", "error");
-    }
-  } catch (e) { showNotification("Помилка мережі", "error"); }
-};
+        })
+      });
+      if (res.ok) {
+        setIsEditing(false);
+        showNotification("Дані збережено в хмарі", "success");
+
+        setUserData((prev: any) => ({
+          ...prev,
+          profile: {
+            weight: Number(weight),
+            height: Number(height),
+            birth_year: Number(birthYear),
+            blood_type: selectedType,
+            goal: selectedGoal.id
+          }
+        }));
+      } else {
+        showNotification("Помилка збереження", "error");
+      }
+    } catch (e) { showNotification("Помилка мережі", "error"); }
+  };
 
   const parseMealPlan = (text: string) => {
     const meals = { breakfast: '', lunch: '', dinner: '' };
@@ -209,53 +201,50 @@ export default function Home() {
   };
 
   const handleSmartSearch = async () => {
-  const query = searchQuery.trim();
-  if (!query) return;
+    const query = searchQuery.trim();
+    if (!query) return;
 
-  setIsSearching(true);
-  setScannedProduct(null);
-  setSearchResults([]);
+    setIsSearching(true);
+    setScannedProduct(null);
+    setSearchResults([]);
 
-  // РЕГУЛЯРНИЙ ВИРАЗ: Якщо запит складається суто з цифр (штрих-код)
-  const isBarcode = /^\d+$/.test(query);
+    const isBarcode = /^\d+$/.test(query);
 
-  try {
-    if (isBarcode) {
-      // 1. Пошук за штрих-кодом
-      const response = await fetch(`http://127.0.0.1:8000/api/v1/meals/product/${query}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await response.json();
-      if (response.ok && data.product) {
-        setScannedProduct(data.product);
-        showNotification("Продукт знайдено за штрих-кодом!", "success");
+    try {
+      if (isBarcode) {
+        const response = await fetch(`http://127.0.0.1:8000/api/v1/meals/product/${query}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await response.json();
+        if (response.ok && data.product) {
+          setScannedProduct(data.product);
+          showNotification("Продукт знайдено за штрих-кодом!", "success");
+        } else {
+          showNotification(data.detail || "Продукт не знайдено", "error");
+        }
       } else {
-        showNotification(data.detail || "Продукт не знайдено", "error");
+        if (query.length < 3) {
+          showNotification("Для пошуку за назвою введіть мінімум 3 символи", "info");
+          setIsSearching(false);
+          return;
+        }
+        const response = await fetch(`http://127.0.0.1:8000/api/v1/meals/search?query=${encodeURIComponent(query)}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await response.json();
+        if (response.ok && data.results && data.results.length > 0) {
+          setSearchResults(data.results);
+          showNotification(`Знайдено продуктів: ${data.results.length}`, "success");
+        } else {
+          showNotification(data.message || "Нічого не знайдено", "error");
+        }
       }
-    } else {
-      // 2. Пошук за назвою (текст)
-      if (query.length < 3) {
-        showNotification("Для пошуку за назвою введіть мінімум 3 символи", "info");
-        setIsSearching(false);
-        return;
-      }
-      const response = await fetch(`http://127.0.0.1:8000/api/v1/meals/search?query=${encodeURIComponent(query)}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await response.json();
-      if (response.ok && data.results && data.results.length > 0) {
-        setSearchResults(data.results);
-        showNotification(`Знайдено продуктів: ${data.results.length}`, "success");
-      } else {
-        showNotification(data.message || "Нічого не знайдено", "error");
-      }
+    } catch (e) {
+      showNotification("Помилка зв'язку з сервером", "error");
+    } finally {
+      setIsSearching(false);
     }
-  } catch (e) {
-    showNotification("Помилка зв'язку з сервером", "error");
-  } finally {
-    setIsSearching(false);
-  }
-};
+  };
 
   const handleGeneratePlan = async () => {
     setIsGenerating(true);
@@ -287,7 +276,7 @@ export default function Home() {
         'IV (AB)': "🍔 Твій варіант — рибний бургер або сендвіч з тунцем та зеленню. Уникай червоного м'яса в булках."
       };
       result = tips[type] || tips['I (0)'];
-    } 
+    }
     else if (q.match(/цукор|цукерки|торт|шоколад|печиво|мед/)) {
       const tips: any = {
         'I (0)': "🍩 Цукор гальмує твій метаболізм. Заміни на чорнослив або горіхи.",
@@ -319,7 +308,7 @@ export default function Home() {
     <main className="min-h-screen p-4 md:p-10 pb-20 relative overflow-x-hidden">
       {showWelcome && <WelcomeOverlay onComplete={() => setShowWelcome(false)} />}
       <Background3D />
-      
+
       {notification && (
         <div className={`fixed top-4 right-4 z-50 p-5 rounded-2xl shadow-2xl border-l-8 transform transition-all animate-in slide-in-from-right duration-300 min-w-[320px] ${
           notification.type === 'success' ? 'bg-green-600 border-green-900 text-white' : 
@@ -342,7 +331,7 @@ export default function Home() {
           <h1 className="text-8xl md:text-[10rem] font-black mb-4 tracking-tighter italic leading-none drop-shadow-2xl">
             Smart <span className="text-red-600 underline decoration-8">Fuel</span>
           </h1>
-          
+
           <div className="flex flex-col items-center gap-4">
             {isEditing ? (
               <div className="flex flex-wrap justify-center gap-3 bg-white/40 p-4 rounded-[2rem] border border-white shadow-2xl animate-in zoom-in">
@@ -354,11 +343,11 @@ export default function Home() {
               </div>
             ) : (
               <div className="flex flex-wrap justify-center gap-4 text-gray-500 font-black uppercase italic text-[11px] tracking-widest bg-white/30 px-6 py-2 rounded-full border border-white/50 backdrop-blur-sm">
-              <span>Користувач: <span className="text-black">{userData?.email}</span></span>
-              <span className="text-red-600">|</span>
-              <span>Зріст: {height}см</span>
-              <span className="text-red-600">|</span>
-              <span>Вага: {weight}кг</span>
+                <span>Користувач: <span className="text-black">{userData?.email}</span></span>
+                <span className="text-red-600">|</span>
+                <span>Зріст: {height}см</span>
+                <span className="text-red-600">|</span>
+                <span>Вага: {weight}кг</span>
                 <button onClick={() => setIsEditing(true)} className="text-black hover:text-red-600 transition-colors ml-2">⚙️ Редагувати</button>
               </div>
             )}
@@ -366,25 +355,24 @@ export default function Home() {
         </header>
 
         <section className="mb-14">
-            <h3 className="text-sm font-black text-gray-400 uppercase italic mb-6 text-center tracking-widest">Виберіть групу крові:</h3>
-            <div className="grid grid-cols-4 gap-4 px-2">
-             {Object.keys(bloodDietData).map(type => (
-               <button
-                 key={type}
-                 onClick={() => toggleBloodType(type)}
-                 className={`py-6 rounded-[2rem] text-xs md:text-sm font-black transition-all border-4 shadow-xl ${
-                   selectedType === type 
-                   ? 'bg-red-600 border-red-600 text-white scale-110 shadow-red-600/30' 
-                   : 'bg-white/80 backdrop-blur-md border-transparent text-gray-400 hover:text-black hover:scale-105'
-                 }`}
-               >
-                 {type}
-               </button>
-             ))}
-           </div>
+          <h3 className="text-sm font-black text-gray-400 uppercase italic mb-6 text-center tracking-widest">Виберіть групу крові:</h3>
+          <div className="grid grid-cols-4 gap-4 px-2">
+            {Object.keys(bloodDietData).map(type => (
+              <button
+                key={type}
+                onClick={() => toggleBloodType(type)}
+                className={`py-6 rounded-[2rem] text-xs md:text-sm font-black transition-all border-4 shadow-xl ${
+                  selectedType === type 
+                  ? 'bg-red-600 border-red-600 text-white scale-110 shadow-red-600/30' 
+                  : 'bg-white/80 backdrop-blur-md border-transparent text-gray-400 hover:text-black hover:scale-105'
+                }`}
+              >
+                {type}
+              </button>
+            ))}
+          </div>
         </section>
 
-        {/* СЕКЦІЯ МЕТИ */}
         <section className="mb-14">
           <h3 className="text-2xl font-black mb-8 uppercase italic flex items-center tracking-tighter">
              <span className="text-red-600 mr-3 text-3xl">🎯</span> Ваша мета:
@@ -410,9 +398,9 @@ export default function Home() {
         {selectedType && (
           <div className="bg-gray-900 rounded-[4rem] p-10 md:p-16 text-white shadow-[0_50px_100px_rgba(0,0,0,0.4)] mb-16 border border-white/5 relative animate-in zoom-in duration-500">
             <button onClick={() => setSelectedType(null)} className="absolute top-10 right-10 text-white/10 hover:text-red-600 transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+              </svg>
             </button>
 
             <div className="flex flex-col md:flex-row justify-between items-center gap-10 mb-12">
@@ -478,183 +466,140 @@ export default function Home() {
           <button onClick={() => getAdvice('stress')} className="bg-white/80 backdrop-blur-sm p-5 rounded-3xl shadow-lg font-black text-[11px] uppercase border-b-8 border-purple-500 hover:-translate-y-2 transition-all active:translate-y-0">🧘 Стрес</button>
         </div>
 
-       <section className="bg-white/90 backdrop-blur-2xl p-10 rounded-[4rem] shadow-2xl mb-16 border border-white relative overflow-hidden">
-  <div className="flex justify-between items-center mb-10">
-    <h3 className="text-2xl font-black flex items-center uppercase italic tracking-tighter">
-        <span className="bg-blue-600 text-white w-10 h-10 rounded-xl flex items-center justify-center mr-4 text-xs italic font-black shadow-lg">AI</span>
-        Розумний пошук їжі
-    </h3>
-    {(searchQuery || scannedProduct || searchResults.length > 0) && (
-        <button onClick={() => { setSearchQuery(''); setScannedProduct(null); setSearchResults([]); }} className="text-gray-400 hover:text-red-600 font-black text-xs uppercase italic transition-colors">✕ Скинути</button>
-    )}
-  </div>
+        {/* СЕКЦІЯ AI ПОШУКУ ЇЖІ */}
+        <section className="bg-white/90 backdrop-blur-2xl p-10 rounded-[4rem] shadow-2xl mb-16 border border-white relative overflow-hidden">
+          <div className="flex justify-between items-center mb-10">
+            <h3 className="text-2xl font-black flex items-center uppercase italic tracking-tighter">
+                <span className="bg-blue-600 text-white w-10 h-10 rounded-xl flex items-center justify-center mr-4 text-xs italic font-black shadow-lg">AI</span>
+                Розумний пошук їжі
+            </h3>
+            {(searchQuery || scannedProduct || searchResults.length > 0) && (
+                <button onClick={() => { setSearchQuery(''); setScannedProduct(null); setSearchResults([]); }} className="text-gray-400 hover:text-red-600 font-black text-xs uppercase italic transition-colors">✕ Скинути</button>
+            )}
+          </div>
 
-<<<<<<< HEAD
-          {scannedProduct && (
-            <div className="animate-in fade-in slide-in-from-bottom-8 duration-700">
-              <div className="flex flex-col md:flex-row items-center gap-10 p-10 bg-gradient-to-br from-blue-50 to-white rounded-[3.5rem] border border-blue-100 mb-10 shadow-inner">
-                <div className="relative w-44 h-44 flex-shrink-0 bg-white rounded-[2.5rem] p-4 shadow-2xl border border-blue-50 overflow-hidden flex items-center justify-center">
-                  {scannedProduct.image ? (
-                    <img src={scannedProduct.image} className="max-w-full max-h-full object-contain" alt="Product" />
-                  ) : (
-                    <div className="text-gray-400 font-black italic text-xs text-center">Фото відсутнє</div>
-                  )}
-                  <div className="absolute -bottom-2 -right-2 bg-blue-600 text-white text-[10px] font-black px-3 py-1 rounded-lg uppercase italic">AI Scan</div>
-                </div>
-                <div className="flex-1 text-center md:text-left">
-                  <h4 className="text-4xl font-black text-blue-900 mb-2 italic tracking-tighter">
-                    {scannedProduct.product_name || "Невідомий продукт"}
-                  </h4>
-                  <p className="text-blue-600 font-black mb-6 uppercase text-xs tracking-widest opacity-60">
-                    {scannedProduct.brands || "Бренд не вказано"}
-                  </p>
-                  <div className="inline-block px-6 py-3 bg-blue-600 text-white rounded-2xl font-black text-sm italic shadow-xl">
-                      {scannedProduct.nutriments?.['energy-kcal_100g'] < 350 ? '✅ ПІДХОДИТЬ' : '⚠️ КАЛОРІЙНО'}
+          {/* Поле вводу */}
+          <div className="flex gap-4 mb-10">
+            <input
+              type="text"
+              placeholder="Введіть штрих-код або назву продукту..."
+              className="flex-1 p-6 bg-gray-100/50 rounded-[2rem] font-black border-4 border-transparent focus:border-blue-600 outline-none transition-all italic text-lg"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSmartSearch()}
+            />
+            <button onClick={handleSmartSearch} className="px-10 bg-blue-600 text-white rounded-[2rem] font-black uppercase text-sm shadow-xl hover:bg-blue-700 transition-all active:scale-95">
+              {isSearching ? '...' : 'Пошук'}
+            </button>
+          </div>
+
+          {/* Список результатів пошуку за назвою */}
+          {searchResults.length > 0 && !scannedProduct && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10 animate-in fade-in duration-500">
+              {searchResults.map((prod: any, idx: number) => (
+                <div
+                  key={prod.id || idx}
+                  onClick={() => setScannedProduct(prod)}
+                  className="flex items-center gap-4 p-4 bg-gray-50 hover:bg-blue-50/50 rounded-3xl border border-gray-100 cursor-pointer transition-all hover:scale-[1.01] active:scale-95"
+                >
+                  <div className="w-16 h-16 bg-white rounded-2xl p-2 border border-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+                    {prod.image ? (
+                      <img src={prod.image} className="max-w-full max-h-full object-contain" alt="" />
+                    ) : (
+                      <span className="text-[9px] text-gray-400 font-black uppercase">No pic</span>
+                    )}
+                  </div>
+                  <div className="overflow-hidden">
+                    <h5 className="font-black text-gray-800 text-sm truncate uppercase italic tracking-tight">
+                      {prod.product_name}
+                    </h5>
+                    <p className="text-xs text-gray-400 font-bold uppercase truncate">
+                      {prod.brands}
+                    </p>
+                  </div>
+                  <div className="ml-auto bg-blue-100 text-blue-800 font-black text-[10px] px-3 py-1 rounded-xl">
+                    {Math.round(prod.nutriments?.energy_kcal_100g || 0)} ккал
                   </div>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-                {[
-                  ['Енергія', Math.round(scannedProduct.nutriments?.['energy-kcal_100g'] || 0), 'ккал', 'bg-red-50'],
-                  ['Білки', scannedProduct.nutriments?.proteins_100g || 0, 'г', 'bg-blue-50'],
-                  ['Жири', scannedProduct.nutriments?.fat_100g || 0, 'г', 'bg-orange-50'],
-                  ['Вуглеводи', scannedProduct.nutriments?.carbohydrates_100g || 0, 'г', 'bg-green-50'],
-                ].map(([label, val, unit, color]) => (
-                  <div key={label as string} className={`${color} p-6 rounded-[2.5rem] border border-white shadow-sm flex flex-col items-center justify-center`}>
-                    <p className="text-[10px] font-black text-gray-400 uppercase mb-2 tracking-widest">{label}</p>
-                    <p className="text-3xl font-black italic text-gray-800">{val}<span className="text-xs ml-1 uppercase">{unit}</span></p>
-                  </div>
-                ))}
-              </div>
+              ))}
             </div>
-=======
-  {/* Поле вводу */}
-  <div className="flex gap-4 mb-10">
-    <input
-      type="text"
-      placeholder="Введіть штрих-код або назву продукту..."
-      className="flex-1 p-6 bg-gray-100/50 rounded-[2rem] font-black border-4 border-transparent focus:border-blue-600 outline-none transition-all italic text-lg"
-      value={searchQuery}
-      onChange={(e) => setSearchQuery(e.target.value)}
-      onKeyDown={(e) => e.key === 'Enter' && handleSmartSearch()}
-    />
-    <button onClick={handleSmartSearch} className="px-10 bg-blue-600 text-white rounded-[2rem] font-black uppercase text-sm shadow-xl hover:bg-blue-700 transition-all active:scale-95">
-      {isSearching ? '...' : 'Пошук'}
-    </button>
-  </div>
-
- {searchResults.length > 0 && !scannedProduct && (
-  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10 animate-in fade-in duration-500">
-    {searchResults.map((prod: any, idx: number) => (
-      <div
-        key={prod.id || idx}
-        onClick={() => setScannedProduct(prod)}
-        className="flex items-center gap-4 p-4 bg-gray-50 hover:bg-blue-50/50 rounded-3xl border border-gray-100 cursor-pointer transition-all hover:scale-[1.01] active:scale-95"
-      >
-        <div className="w-16 h-16 bg-white rounded-2xl p-2 border border-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
-          {prod.image ? (
-            <img src={prod.image} className="max-w-full max-h-full object-contain" alt="" />
-          ) : (
-            <span className="text-[9px] text-gray-400 font-black uppercase">No pic</span>
->>>>>>> backup/full-app
           )}
-        </div>
-        <div className="overflow-hidden">
-          <h5 className="font-black text-gray-800 text-sm truncate uppercase italic tracking-tight">
-            {prod.product_name}
-          </h5>
-          <p className="text-xs text-gray-400 font-bold uppercase truncate">
-            {prod.brands}
-          </p>
-        </div>
-        <div className="ml-auto bg-blue-100 text-blue-800 font-black text-[10px] px-3 py-1 rounded-xl">
-          {Math.round(prod.nutriments?.energy_kcal_100g || 0)} ккал
-        </div>
-      </div>
-    ))}
-  </div>
-)}
 
- {scannedProduct && (() => {
-  // Safe Data Parsing (Витягуємо дані, як би API їх не назвало)
-  const pName = scannedProduct.product_name || scannedProduct.product_name_uk || scannedProduct.product_name_en || "Невідомий продукт";
-  const brand = scannedProduct.brands || scannedProduct.brand || "Бренд не вказано";
-  const imgUrl = scannedProduct.image || scannedProduct.image_front_url || scannedProduct.image_front_small_url || scannedProduct.image_url;
+          {/* Картка обраного / відсканованого продукту */}
+          {scannedProduct && (() => {
+            const pName = scannedProduct.product_name || scannedProduct.product_name_uk || scannedProduct.product_name_en || "Невідомий продукт";
+            const brand = scannedProduct.brands || scannedProduct.brand || "Бренд не вказано";
+            const imgUrl = scannedProduct.image || scannedProduct.image_front_url || scannedProduct.image_front_small_url || scannedProduct.image_url;
 
-  // Парсинг нутрієнтів (Перебираємо всі можливі ключі Open Food Facts)
-  const nutrs = scannedProduct.nutriments || {};
+            const nutrs = scannedProduct.nutriments || {};
 
-  // Калорії
-  const kcal = Math.round(
-    nutrs.energy_kcal_100g ||
-    nutrs["energy-kcal_100g"] ||
-    nutrs.energy_kcal ||
-    nutrs.energy_value || 0
-  );
+            const kcal = Math.round(
+              nutrs.energy_kcal_100g ||
+              nutrs["energy-kcal_100g"] ||
+              nutrs.energy_kcal ||
+              nutrs.energy_value || 0
+            );
 
-  // Білки, Жири, Вуглеводи
-  const proteins = nutrs.proteins_100g || nutrs.proteins || nutrs.proteins_value || 0;
-  const fats = nutrs.fat_100g || nutrs.fat || nutrs.fat_value || 0;
-  const carbs = nutrs.carbohydrates_100g || nutrs.carbohydrates || nutrs.carbohydrates_value || 0;
+            const proteins = nutrs.proteins_100g || nutrs.proteins || nutrs.proteins_value || 0;
+            const fats = nutrs.fat_100g || nutrs.fat || nutrs.fat_value || 0;
+            const carbs = nutrs.carbohydrates_100g || nutrs.carbohydrates || nutrs.carbohydrates_value || 0;
 
-  return (
-    <div className="animate-in fade-in slide-in-from-bottom-8 duration-700">
+            return (
+              <div className="animate-in fade-in slide-in-from-bottom-8 duration-700">
+                {searchResults.length > 0 && (
+                  <button
+                    onClick={() => setScannedProduct(null)}
+                    className="mb-4 text-blue-600 font-black text-xs uppercase italic hover:underline flex items-center gap-1"
+                  >
+                    ← Назад до результатів пошуку
+                  </button>
+                )}
 
-      {/* Кнопка повернення до результатів пошуку */}
-      {searchResults.length > 0 && (
-        <button
-          onClick={() => setScannedProduct(null)}
-          className="mb-4 text-blue-600 font-black text-xs uppercase italic hover:underline flex items-center gap-1"
-        >
-          ← Назад до результатів пошуку
-        </button>
-      )}
+                <div className="flex flex-col md:flex-row items-center gap-10 p-10 bg-gradient-to-br from-blue-50 to-white rounded-[3.5rem] border border-blue-100 mb-10 shadow-inner">
+                  <div className="relative w-44 h-44 flex-shrink-0 bg-white rounded-[2.5rem] p-4 shadow-2xl border border-blue-50 overflow-hidden flex items-center justify-center">
+                    {imgUrl ? (
+                      <img src={imgUrl} className="max-w-full max-h-full object-contain" alt={pName} />
+                    ) : (
+                      <div className="text-gray-400 font-black italic text-xs text-center">Фото відсутнє</div>
+                    )}
+                    <div className="absolute -bottom-2 -right-2 bg-blue-600 text-white text-[10px] font-black px-3 py-1 rounded-lg uppercase italic">Smart Fuel</div>
+                  </div>
 
-      <div className="flex flex-col md:flex-row items-center gap-10 p-10 bg-gradient-to-br from-blue-50 to-white rounded-[3.5rem] border border-blue-100 mb-10 shadow-inner">
-        <div className="relative w-44 h-44 flex-shrink-0 bg-white rounded-[2.5rem] p-4 shadow-2xl border border-blue-50 overflow-hidden flex items-center justify-center">
-          {imgUrl ? (
-            <img src={imgUrl} className="max-w-full max-h-full object-contain" alt={pName} />
-          ) : (
-            <div className="text-gray-400 font-black italic text-xs text-center">Фото відсутнє</div>
-          )}
-          <div className="absolute -bottom-2 -right-2 bg-blue-600 text-white text-[10px] font-black px-3 py-1 rounded-lg uppercase italic">Smart Fuel</div>
-        </div>
+                  <div className="flex-1 text-center md:text-left">
+                    <h4 className="text-4xl font-black text-blue-900 mb-2 italic tracking-tighter uppercase">
+                      {pName}
+                    </h4>
+                    <p className="text-blue-600 font-black mb-6 uppercase text-xs tracking-widest opacity-60">
+                      {brand}
+                    </p>
+                    <div className="inline-block px-6 py-3 bg-blue-600 text-white rounded-2xl font-black text-sm italic shadow-xl">
+                        {kcal === 0 ? 'ℹ️ НЕМАЄ ДАНИХ ПРО ККАЛ' : kcal < 350 ? '✅ ПІДХОДИТЬ' : '⚠️ КАЛОРІЙНО'}
+                    </div>
+                  </div>
+                </div>
 
-        <div className="flex-1 text-center md:text-left">
-          <h4 className="text-4xl font-black text-blue-900 mb-2 italic tracking-tighter uppercase">
-            {pName}
-          </h4>
-          <p className="text-blue-600 font-black mb-6 uppercase text-xs tracking-widest opacity-60">
-            {brand}
-          </p>
-          <div className="inline-block px-6 py-3 bg-blue-600 text-white rounded-2xl font-black text-sm italic shadow-xl">
-              {kcal === 0 ? 'ℹ️ НЕМАЄ ДАНИХ ПРО ККАЛ' : kcal < 350 ? '✅ ПІДХОДИТЬ' : '⚠️ КАЛОРІЙНО'}
-          </div>
-        </div>
-      </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                  {[
+                    ['Енергія', kcal, 'ккал', 'bg-red-50'],
+                    ['Білки', proteins, 'г', 'bg-blue-50'],
+                    ['Жири', fats, 'г', 'bg-orange-50'],
+                    ['Вуглеводи', carbs, 'г', 'bg-green-50'],
+                  ].map(([label, val, unit, color]) => (
+                    <div key={label as string} className={`${color} p-6 rounded-[2.5rem] border border-white shadow-sm flex flex-col items-center justify-center`}>
+                      <p className="text-[10px] font-black text-gray-400 uppercase mb-2 tracking-widest">{label}</p>
+                      <p className="text-3xl font-black italic text-gray-800">
+                        {typeof val === 'number' ? val.toFixed(1).replace('.0', '') : val}
+                        <span className="text-xs ml-1 uppercase">{unit}</span>
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+        </section>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-        {[
-          ['Енергія', kcal, 'ккал', 'bg-red-50'],
-          ['Білки', proteins, 'г', 'bg-blue-50'],
-          ['Жири', fats, 'г', 'bg-orange-50'],
-          ['Вуглеводи', carbs, 'г', 'bg-green-50'],
-        ].map(([label, val, unit, color]) => (
-          <div key={label as string} className={`${color} p-6 rounded-[2.5rem] border border-white shadow-sm flex flex-col items-center justify-center`}>
-            <p className="text-[10px] font-black text-gray-400 uppercase mb-2 tracking-widest">{label}</p>
-            <p className="text-3xl font-black italic text-gray-800">
-              {typeof val === 'number' ? val.toFixed(1).replace('.0', '') : val}
-              <span className="text-xs ml-1 uppercase">{unit}</span>
-            </p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-})()}
-</section>
-
+        {/* СЕКЦІЯ РОЗУМНОЇ ЗАМІНИ */}
         <section className="bg-black p-10 rounded-[4rem] shadow-[0_50px_100px_rgba(0,0,0,0.3)] mb-16 border border-white/5 relative overflow-hidden">
           <div className="flex justify-between items-center mb-10">
             <h3 className="text-2xl font-black flex items-center uppercase italic tracking-tighter text-white">
