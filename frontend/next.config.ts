@@ -11,3 +11,8 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
+
+// frontend/services/config.ts
+
+// Якщо в системі є хмарна адреса (на Vercel), беремо її. Якщо ні — працюємо локально.
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";

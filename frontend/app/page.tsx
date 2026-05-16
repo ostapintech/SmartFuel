@@ -58,6 +58,8 @@ export default function Home() {
   const { token, isLoading, logout } = useAuth();
   const router = useRouter();
 
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
+
   const [showWelcome, setShowWelcome] = useState(true);
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [userData, setUserData] = useState<any>(null);
@@ -88,7 +90,7 @@ export default function Home() {
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
-        const profileRes = await fetch('http://127.0.0.1:8000/api/v1/users/me', {
+        const profileRes = await fetch(`${API_BASE_URL}/users/me`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (profileRes.ok) {
@@ -107,7 +109,7 @@ export default function Home() {
           }
         }
 
-        const historyRes = await fetch('http://127.0.0.1:8000/api/v1/meals/history', {
+        const historyRes = await fetch(`${API_BASE_URL}/meals/history`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (historyRes.ok) {
@@ -141,7 +143,7 @@ export default function Home() {
 
   const handleUpdateProfile = async () => {
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/v1/users/update-profile', {
+      const res = await fetch(`${API_BASE_URL}/users/update-profile`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -212,7 +214,7 @@ export default function Home() {
 
     try {
       if (isBarcode) {
-        const response = await fetch(`http://127.0.0.1:8000/api/v1/meals/product/${query}`, {
+        const response = await fetch(`${API_BASE_URL}/meals/product/${query}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         const data = await response.json();
@@ -228,7 +230,7 @@ export default function Home() {
           setIsSearching(false);
           return;
         }
-        const response = await fetch(`http://127.0.0.1:8000/api/v1/meals/search?query=${encodeURIComponent(query)}`, {
+        const response = await fetch(`${API_BASE_URL}/meals/search?query=${encodeURIComponent(query)}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         const data = await response.json();
@@ -249,7 +251,7 @@ export default function Home() {
   const handleGeneratePlan = async () => {
     setIsGenerating(true);
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/v1/meals/generate-and-save', {
+      const response = await fetch(`${API_BASE_URL}/meals/generate-and-save`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });

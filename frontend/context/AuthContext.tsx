@@ -11,6 +11,8 @@ interface AuthContextType {
   isLoading: boolean;
 }
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -22,7 +24,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Функція для завантаження даних профілю з бекенду
   const fetchUserProfile = async (authToken: string) => {
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/v1/users/me", {
+      const response = await fetch(`${API_URL}/users/me`, {
         method: "GET",
         headers: {
           "Authorization": `Bearer ${authToken}`,
