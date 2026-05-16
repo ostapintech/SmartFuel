@@ -485,7 +485,6 @@ export default function Home() {
                   )}
                   <div className="absolute -bottom-2 -right-2 bg-blue-600 text-white text-[10px] font-black px-3 py-1 rounded-lg uppercase italic">AI Scan</div>
                 </div>
-
                 <div className="flex-1 text-center md:text-left">
                   <h4 className="text-4xl font-black text-blue-900 mb-2 italic tracking-tighter">
                     {scannedProduct.product_name || "Невідомий продукт"}
@@ -494,14 +493,14 @@ export default function Home() {
                     {scannedProduct.brands || "Бренд не вказано"}
                   </p>
                   <div className="inline-block px-6 py-3 bg-blue-600 text-white rounded-2xl font-black text-sm italic shadow-xl">
-                      {scannedProduct.nutriments?.energy_kcal_100g < 350 ? '✅ ПІДХОДИТЬ' : '⚠️ КАЛОРІЙНО'}
+                      {scannedProduct.nutriments?.['energy-kcal_100g'] < 350 ? '✅ ПІДХОДИТЬ' : '⚠️ КАЛОРІЙНО'}
                   </div>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
                 {[
-                  ['Енергія', Math.round(scannedProduct.nutriments?.energy_kcal_100g || 0), 'ккал', 'bg-red-50'],
+                  ['Енергія', Math.round(scannedProduct.nutriments?.['energy-kcal_100g'] || 0), 'ккал', 'bg-red-50'],
                   ['Білки', scannedProduct.nutriments?.proteins_100g || 0, 'г', 'bg-blue-50'],
                   ['Жири', scannedProduct.nutriments?.fat_100g || 0, 'г', 'bg-orange-50'],
                   ['Вуглеводи', scannedProduct.nutriments?.carbohydrates_100g || 0, 'г', 'bg-green-50'],
