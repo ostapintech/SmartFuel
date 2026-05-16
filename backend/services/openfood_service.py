@@ -87,35 +87,51 @@ class OpenFoodService:
         Шукає продукти за назвою з урахуванням екологічних метрик.
         """
         try:
-            # Використовуємо asyncio.to_thread для синхронного методу бібліотеки
-            search_result = await asyncio.to_thread(
-                self.api.product.text_search,
-                query,
-                page_size=page_size
+            # Викликаємо пошук у окремому потоці
+            raw_results = await asyncio.to_thread(
+                self.api.product.text_search, query
             )
 
-            products = search_result.get("products", [])
-            processed_results = []
+            products = raw_results.get("products", [])
+            sanitized_products = []
 
             for p in products:
-                # Формуємо чистий об'єкт для фронтенду/логіки
-                processed_results.append({
-                    "id": p.get("_id"),
-                    "name": p.get("product_name"),
-                    "brand": p.get("brands"),
-                    "image": p.get("image_front_url"),
-                    "ecoscore": p.get("ecoscore_grade", "unknown").upper(),
-                    "nutriscore": p.get("nutriscore_grade", "unknown").upper(),
-                    "is_organic": "en:organic" in p.get("labels_tags", []),
-                    "categories": p.get("categories", "").split(",")[:3]  # перші 3 категорії
+                # Витягуємо нутрієнти безпечно
+                nutrs = p.get("nutriments", {})
+
+                # Шукаємо калорії у всіх можливих ключах OFF
+                kcal = (
+                        nutrs.get("energy-kcal_100g") or
+                        nutrs.get("energy_kcal_100g") or
+                        nutrs.get("energy_value") or 0
+                )
+
+                # ФІЛЬТР: якщо калорій 0 (або поле порожнє), ігноруємо цей продукт
+                if kcal <= 0:
+                    continue
+
+                # Додаткова перевірка: якщо назва зовсім відсутня, теж пропускаємо
+                product_name = p.get("product_name_uk") or p.get("product_name") or p.get("product_name_en")
+                if not product_name:
+                    continue
+
+                # Якщо продукт пройшов перевірку, додаємо його до списку
+                sanitized_products.append({
+                    "id": p.get("_id") or p.get("code"),
+                    "product_name": product_name,
+                    "brands": p.get("brands") or "Бренд не вказано",
+                    "image": p.get("image_front_url") or p.get("image_front_small_url") or p.get("image_url"),
+                    "nutriments": {
+                        "energy_kcal_100g": kcal,
+                        "proteins_100g": nutrs.get("proteins_100g") or nutrs.get("proteins") or 0,
+                        "fat_100g": nutrs.get("fat_100g") or nutrs.get("fat") or 0,
+                        "carbohydrates_100g": nutrs.get("carbohydrates_100g") or nutrs.get("carbohydrates") or 0
+                    }
                 })
 
-            # Сортуємо: спочатку екологічні (A, B), потім решта
-            processed_results.sort(key=lambda x: x['ecoscore'] if x['ecoscore'] != "UNKNOWN" else "Z")
-
-            return processed_results
+            return sanitized_products
 
         except Exception as e:
-            print(f"Помилка під час пошуку: {e}")
+            print(f"Помилка пошуку продуктів: {e}")
             return []
 
