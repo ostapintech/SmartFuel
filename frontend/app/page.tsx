@@ -93,21 +93,33 @@ export default function Home() {
         const profileRes = await fetch(`${API_BASE_URL}/users/me`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
-        if (profileRes.ok) {
-          const data = await profileRes.json();
-          setUserData(data);
+       if (profileRes.ok) {
+  const data = await profileRes.json();
+  setUserData(data);
 
-          const profile = data.profile;
-          if (profile) {
-            setWeight(profile.weight?.toString() || '');
-            setHeight(profile.height?.toString() || '');
-            setBirthYear(profile.birth_year?.toString() || '1995');
-            if (profile.blood_type) setSelectedType(profile.blood_type);
+  // 1. Зчитуємо антропометрію (зріст, вага, рік/вік)
+  const anthropometry = data.anthropometry;
+  if (anthropometry) {
+    setWeight(anthropometry.weight?.toString() || '');
+    setHeight(anthropometry.height?.toString() || '');
+    // Якщо бекенд зберігає birth_year в anthropometry:
+    if (anthropometry.birth_year) {
+      setBirthYear(anthropometry.birth_year.toString());
+    } else if (anthropometry.age) {
+      // Якщо приходить вік, перераховуємо в рік народження
+      setBirthYear((new Date().getFullYear() - anthropometry.age).toString());
+    }
+  }
 
-            const savedGoal = goalLevels.find(g => g.id === profile.goal);
-            if (savedGoal) setSelectedGoal(savedGoal);
-          }
-        }
+  // 2. Зчитуємо налаштування профілю (група крові, мета)
+  const profile = data.profile;
+  if (profile) {
+    if (profile.blood_type) setSelectedType(profile.blood_type);
+
+    const savedGoal = goalLevels.find(g => g.id === profile.goal);
+    if (savedGoal) setSelectedGoal(savedGoal);
+  }
+}
 
         const historyRes = await fetch(`${API_BASE_URL}/meals/history`, {
           headers: { 'Authorization': `Bearer ${token}` }
