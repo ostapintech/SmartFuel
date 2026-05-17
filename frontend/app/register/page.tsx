@@ -27,36 +27,37 @@ export default function RegisterPage() {
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    try {
-      const payload = {
-        email: formData.email,
-        password: formData.password,
-        anthropometry: {
-          height: Number(formData.height),
-          weight: Number(formData.weight),
-          age: Number(formData.age),
-          gender: formData.gender,
-        },
-        profile: {
-          user_type: formData.user_type,
-          goal: formData.goal,
-          blood_type: formData.blood_type,
-          health_conditions: [],
-        }
-      };
+  e.preventDefault();
+  setIsLoading(true);
+  try {
+    const payload = {
+      email: formData.email,
+      password: formData.password,
+      anthropometry: {
+        height: Number(formData.height),
+        weight: Number(formData.weight),
+        age: Number(formData.age), // 🔥 ПОВЕРНУЛИ AGE ЯК У СХЕМІ БЕКЕНДУ!
+        gender: formData.gender,
+      },
+      profile: {
+        user_type: formData.user_type,
+        goal: formData.goal,
+        blood_type: formData.blood_type === "1" ? "I (0)" :
+                    formData.blood_type === "2" ? "II (A)" :
+                    formData.blood_type === "3" ? "III (B)" : "IV (AB)",
+        health_conditions: [],
+      }
+    };
 
-      await authService.register(payload);
-      showNotify("Реєстрація успішна!", "success");
-      setTimeout(() => router.push("/login"), 1500);
-    } catch (err: any) {
-      showNotify(err.message || "Помилка при реєстрації", "error");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
+    await authService.register(payload);
+    showNotify("Реєстрація успішна!", "success");
+    setTimeout(() => router.push("/login"), 1500);
+  } catch (err: any) {
+    showNotify(err.message || "Помилка при реєстрації", "error");
+  } finally {
+    setIsLoading(false);
+  }
+};
   return (
     <main className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-[#f3f4f6]">
       {notification && (

@@ -93,35 +93,35 @@ export default function Home() {
         const profileRes = await fetch(`${API_BASE_URL}/users/me`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
-       if (profileRes.ok) {
+if (profileRes.ok) {
   const data = await profileRes.json();
   setUserData(data);
 
-  // 1. Зчитуємо антропометрію (зріст, вага, рік/вік)
-  const anthropometry = data.anthropometry;
-  if (anthropometry) {
-    setWeight(anthropometry.weight?.toString() || '');
-    setHeight(anthropometry.height?.toString() || '');
-    // Якщо бекенд зберігає birth_year в anthropometry:
-    if (anthropometry.birth_year) {
-      setBirthYear(anthropometry.birth_year.toString());
-    } else if (anthropometry.age) {
-      // Якщо приходить вік, перераховуємо в рік народження
-      setBirthYear((new Date().getFullYear() - anthropometry.age).toString());
+  const prof = data.profile;
+  const anthro = data.anthropometry;
+
+  if (prof) {
+    // Якщо дані оновлювалися, беремо з profile. Якщо юзер новий — з anthropometry
+    setWeight(prof.weight?.toString() || anthro?.weight?.toString() || '70');
+    setHeight(prof.height?.toString() || anthro?.height?.toString() || '170');
+
+    // Пріоритетно читаємо birth_year з профілю
+    if (prof.birth_year) {
+      setBirthYear(prof.birth_year.toString());
+    } else if (anthro?.birth_year) {
+      setBirthYear(anthro.birth_year.toString());
+    } else if (anthro?.age) {
+      const calculatedYear = new Date().getFullYear() - Number(anthro.age);
+      setBirthYear(calculatedYear.toString());
     }
-  }
 
-  // 2. Зчитуємо налаштування профілю (група крові, мета)
-  const profile = data.profile;
-  if (profile) {
-    if (profile.blood_type) setSelectedType(profile.blood_type);
+    if (prof.blood_type) setSelectedType(prof.blood_type);
 
-    const savedGoal = goalLevels.find(g => g.id === profile.goal);
+    const savedGoal = goalLevels.find(g => g.id === prof.goal);
     if (savedGoal) setSelectedGoal(savedGoal);
   }
 }
-
-        const historyRes = await fetch(`${API_BASE_URL}/meals/history`, {
+const historyRes = await fetch(`${API_BASE_URL}/meals/history`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (historyRes.ok) {
@@ -153,41 +153,51 @@ export default function Home() {
     return Math.round(bmr * selectedActivity.factor * bloodMod * selectedGoal.factor);
   })();
 
-  const handleUpdateProfile = async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/users/update-profile`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
+const handleUpdateProfile = async () => {
+  try {
+    const res = await fetch(`${API_BASE_URL}/users/update-profile`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      // 🔥 Передаємо плоский об'єкт БЕЗ age, але З обов'язаковим birth_year
+      body: JSON.stringify({
+        weight: Number(weight),
+        height: Number(height),
+        birth_year: Number(birthYear), // 🎯 Ось воно, те саме поле!
+        gender: userData?.anthropometry?.gender || "male",
+        user_type: userData?.profile?.user_type || "Звичайна людина",
+        blood_type: selectedType,
+        goal: selectedGoal.id
+      })
+    });
+
+    if (res.ok) {
+      setIsEditing(false);
+      showNotification("Дані збережено в хмарі", "success");
+
+      // Оновлюємо локальний стейт
+      setUserData((prev: any) => ({
+        ...prev,
+        profile: {
+          ...prev?.profile,
           weight: Number(weight),
           height: Number(height),
           birth_year: Number(birthYear),
           blood_type: selectedType,
           goal: selectedGoal.id
-        })
-      });
-      if (res.ok) {
-        setIsEditing(false);
-        showNotification("Дані збережено в хмарі", "success");
-
-        setUserData((prev: any) => ({
-          ...prev,
-          profile: {
-            weight: Number(weight),
-            height: Number(height),
-            birth_year: Number(birthYear),
-            blood_type: selectedType,
-            goal: selectedGoal.id
-          }
-        }));
-      } else {
-        showNotification("Помилка збереження", "error");
-      }
-    } catch (e) { showNotification("Помилка мережі", "error"); }
-  };
+        }
+      }));
+    } else {
+      const errorData = await res.json();
+      console.log("Деталі помилки 422:", errorData);
+      showNotification("Помилка збереження", "error");
+    }
+  } catch (e) {
+    showNotification("Помилка мережі", "error");
+  }
+};
 
   const parseMealPlan = (text: string) => {
     const meals = { breakfast: '', lunch: '', dinner: '' };
