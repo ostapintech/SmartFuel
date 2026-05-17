@@ -133,7 +133,7 @@ export default function Home() {
     const w = Number(weight);
     const h = Number(height);
     const age = new Date().getFullYear() - Number(birthYear);
-    if (!w || !h || !age || age < 0) return selectedType ? Math.round(bloodDietData[selectedType].kcal * selectedGoal.factor) : 0;
+    if (!w || !h || !age || age < 0) return selectedType ? Math.round(bloodDietData[selectedType]?.kcal * selectedGoal.factor) : 0;
 
     const bmr = (10 * w) + (6.25 * h) - (5 * age) + 5;
     const bloodMod = selectedType === 'II (A)' ? 0.95 : selectedType === 'I (0)' ? 1.05 : 1.0;
