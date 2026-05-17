@@ -271,20 +271,31 @@ const handleUpdateProfile = async () => {
   };
 
   const handleGeneratePlan = async () => {
-    setIsGenerating(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/meals/generate-and-save`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const result = await response.json();
-      if (response.ok) {
-        setMealPlan(result.meal_plan);
-        showNotification("Раціон оновлено!", "success");
-      }
-    } catch (e) { showNotification("Помилка генерації", "error"); }
-    finally { setIsGenerating(false); }
-  };
+  setIsGenerating(true);
+  try {
+    const response = await fetch(`${API_BASE_URL}/meals/generate-and-save`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      // 🔥 Передаємо точну, динамічно пораховану цифру калорій
+      body: JSON.stringify({
+        target_calories: dynamicKcal
+      })
+    });
+
+    const result = await response.json();
+    if (response.ok) {
+      setMealPlan(result.meal_plan);
+      showNotification("Раціон оновлено під твої калорії!", "success");
+    }
+  } catch (e) {
+    showNotification("Помилка генерації", "error");
+  } finally {
+    setIsGenerating(false);
+  }
+};
 
   const handleSmartSwapAction = () => {
     if (!swapQuery) return;

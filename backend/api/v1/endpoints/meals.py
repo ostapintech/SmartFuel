@@ -1,3 +1,4 @@
+import datetime
 from fastapi import APIRouter, HTTPException, Depends
 from backend.core.auth import get_current_user
 from backend.core.database import db_instance
@@ -12,26 +13,53 @@ food_service = OpenFoodService()
 
 
 @router.post("/generate-and-save")
-async def generate_and_save_plan(current_user: dict = Depends(get_current_user)):
+async def generate_and_save_plan(
+        payload: dict = None,  # 🔥 Додаємо payload для прийняття калорій з фронтенду
+        current_user: dict = Depends(get_current_user)
+):
     meals_collection = db_instance.db["user_meals"]
+    payload = payload or {}
 
-    # Міняємо це: дістаємо дані прямо з current_user, а не з profile
-    blood_type = current_user.get("blood_type", "Unknown")
-    
-    # Якщо target_calories немає в базі, ставимо 2000, щоб Pydantic не лаявся
-    target_calories = current_user.get("target_calories")
-    if target_calories is None:
-        target_calories = 2000 
+    # 1. Спершу перевіряємо, чи прийшли точні калорії (dynamicKcal) з фронтенду
+    target_calories = payload.get("target_calories")
 
-    # Передаємо весь об'єкт користувача в сервіс
+    # 2. Якщо фронтенд не передав їх, вираховуємо самостійно (як запасний сейв-гард)
+    if not target_calories:
+        anthropometry = current_user.get("anthropometry", {})
+        profile = current_user.get("profile", {})
+
+        weight = float(profile.get("weight") or anthropometry.get("weight") or 70)
+        height = float(profile.get("height") or anthropometry.get("height") or 170)
+
+        age = profile.get("age") or anthropometry.get("age")
+        if not age and (profile.get("birth_year") or anthropometry.get("birth_year")):
+            birth_year = profile.get("birth_year") or anthropometry.get("birth_year")
+            age = datetime.now().year - int(birth_year)
+        else:
+            age = int(age or 25)
+
+        bmr = (10 * weight) + (6.25 * height) - (5 * age) + 5
+
+        # Базові коефіцієнти
+        blood_type = profile.get("blood_type", "1")
+        blood_mod = 1.05 if blood_type in ["1", "I (0)"] else 0.95
+
+        target_calories = int(bmr * 1.375 * blood_mod)
+
+    # 3. Надійно витягуємо групу крові для логіки промпту
+    profile_obj = current_user.get("profile", {})
+    blood_type = profile_obj.get("blood_type", "Unknown")
+
+    # 4. Передаємо все в сервіси
     allowed_products = await LLMService.get_allowed_products(current_user)
 
+    # 🔥 Передаємо ТОЧНІ калорії з фронтенду в ШІ!
     meal_text = await MealGeneratorService.generate_meal_plan(
         allowed_products,
         target_calories,
         blood_type
     )
-    
+
     new_plan = SavedMealPlan(
         user_id=str(current_user["_id"]),
         target_calories=target_calories,
@@ -42,7 +70,7 @@ async def generate_and_save_plan(current_user: dict = Depends(get_current_user))
     result = await meals_collection.insert_one(new_plan.model_dump())
 
     return {
-        "message": f"Привіт, {current_user['email']}! Твій план згенеровано.",
+        "message": f"Привіт! Твій план згенеровано на {target_calories} ккал.",
         "plan_id": str(result.inserted_id),
         "meal_plan": meal_text
     }
