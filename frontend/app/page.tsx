@@ -408,7 +408,7 @@ export default function Home() {
             <div className="flex flex-col md:flex-row justify-between items-center gap-10 mb-12">
               <div className="text-center md:text-left">
                 <h2 className="text-7xl font-black text-red-600 mb-4 italic tracking-tighter uppercase">Група {selectedType}</h2>
-                <p className="text-gray-400 italic text-2xl max-w-md leading-snug">{bloodDietData[selectedType]?.tip}</p>
+                <p className="text-gray-400 italic text-2xl max-w-md leading-snug">"{bloodDietData[selectedType]?.tip || 'Завантаження поради...'}"</p>
               </div>
               <div className="bg-gradient-to-br from-white/10 to-transparent p-10 rounded-[3.5rem] border border-white/10 text-center min-w-[220px] shadow-inner">
                 <p className="text-7xl font-black leading-none mb-2 text-white italic">{dynamicKcal}</p>
