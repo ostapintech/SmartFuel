@@ -33,23 +33,52 @@ class MealGeneratorService:
         # Можна додати інструкції для 3 та 4 груп за аналогією
 
         prompt = f"""
-        Ти — професійний дієтолог-нутріціолог. Твоє завдання — скласти план харчування на один день (Сніданок, Обід, Вечеря та Перекус).
+        You are a professional Ukrainian chef and nutritionist. Your task is to create a detailed, realistic, and delicious 1-day meal plan based on the user's data.
 
-        УМОВИ:
-        1. Мова відповіді: ТІЛЬКИ УКРАЇНСЬКА.
-        2. Дозволені продукти: {products_str}.
-        3. Цільова калорійність: приблизно {target_calories} ккал.
+        CRITICAL INSTRUCTIONS:
+        - You must write STRICTLY in clean, professional Ukrainian language.
+        - NO суржик or direct English translations (use "сир фета", "волоські горіхи", NOT "фетовий сир" or "велетенські горіхи").
+        - Recipes must be realistic and detailed (write exactly HOW to cook, cut, and mix, not just "conduct heat treatment").
+        - Do NOT repeat the exact same ingredients across breakfast, lunch, and dinner.
 
-        СПЕЦІАЛЬНІ ВИМОГИ (Група крові {blood_type}):
-        {blood_type_logic}
+        Input Data:
+        - Allowed Products: {products_str}
+        - Target Calories: {target_calories} kcal
+        - Blood Type: {blood_type}
+        - Specific Rules: {blood_type_logic}
 
-        ФОРМАТ ВІДПОВІДІ:
-        - Назва кожної страви.
-        - Перелік інгредієнтів.
-        - Короткий покроковий рецепт приготування.
-        - Розрахунок БЖВ (білки, жири, вуглеводи) та калорій для кожного прийому їжі.
+        STRICT OUTPUT FORMAT (Do not include any introductions, notes, or concluding text. Start directly with the first section. Follow the headers EXACTLY as written below. Do NOT repeat the emoji or the word "СНІДАНОК/ОБІД/ВЕЧЕРЯ" inside the data fields):
 
-        Пиши професійно, зрозуміло та з акцентом на екологічність продуктів.
+        СНІДАНОК
+        [Апетитна назва страви без слова Сніданок і без емодзі]
+        Продукти:
+        - [Назва] — [Кількість]г
+        - [Назва] — [Кількість]г
+        Приготування:
+        1. [Детальний перший крок приготування обіду]
+        2. [Детальний другий крок приготування обіду]
+        3. [Детальний третій крок приготування обіду]
+        КБЖВ: [Калорії] ккал | Б: [Грами]г | Ж: [Грами]г | В: [Грами]г
+
+        ОБІД
+        [Апетитна назва страви без слова Обід і без емодзі]
+        Продукти:
+        - [Назва] — [Кількість]г
+        Приготування:
+        1. [Детальний перший крок приготування обіду]
+        2. [Детальний другий крок приготування обіду]
+        3. [Детальний третій крок приготування обіду]
+        КБЖВ: [Калорії] ккал | Б: [Грами]г | Ж: [Грами]г | В: [Грами]г
+
+        ВЕЧЕРЯ
+        [Апетитна назва страви без слова Вечеря і без емодзі]
+        Продукти:
+        - [Назва] — [Кількість]г
+        Приготування:
+        1. [Детальний перший крок приготування вечері]
+        2. [Детальний другий крок приготування вечері]
+        3. [Детальний третій крок приготування вечері]
+        КБЖВ: [Калорії] ккал | Б: [Грами]г | Ж: [Грами]г | В: [Грами]г
         """
 
         try:

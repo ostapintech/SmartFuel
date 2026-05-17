@@ -21,7 +21,8 @@ class LLMService:
 
         CRITICAL REQUIREMENT: 
         Every time you are called, you MUST introduce variety and randomness. Select a diverse, unique, and slightly different sub-set of ingredients (around 15-20 items) from various categories (proteins, carbs, vegetables, healthy fats) that fit the criteria. Avoid generating the exact same list of products twice.
-
+        IMPORTANT: DO NOT ALLOW TO BLOOD TYPE 2 ANY type of meal (chicken, beaf, pork)
+        
         Ensure the products match the user's category restrictions:
         - Goal: {profile_data.get('goal')}
         - User Type: {profile_data.get('user_type')}

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
@@ -87,6 +87,22 @@ export default function Home() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [selectedHistoryPlan, setSelectedHistoryPlan] = useState<any>(null);
 
+  // Функція історії раціонів
+ const fetchMealHistory = useCallback(async () => {
+  if (!token) return;
+  try {
+    const res = await fetch(`${API_BASE_URL}/meals/history`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setMealHistory(data.history);
+    }
+  } catch (e) {
+    console.error("Не вдалося завантажити історію", e);
+  }
+}, [token]);
+
   const showNotification = (msg: string, type: 'info' | 'error' | 'success' = 'info') => {
     setNotification({ msg, type });
     setTimeout(() => setNotification(null), 4000);
@@ -139,8 +155,11 @@ const historyRes = await fetch(`${API_BASE_URL}/meals/history`, {
         console.error("Помилка синхронізації", error);
       }
     };
-    if (token) fetchInitialData();
-  }, [token]);
+  if (token) {
+    fetchInitialData();
+    fetchMealHistory(); // Тепер це повністю безпечно для React
+  }
+}, [token, fetchMealHistory]);
 
   useEffect(() => {
     if (!isLoading && !token) router.replace('/login');
@@ -157,6 +176,7 @@ const historyRes = await fetch(`${API_BASE_URL}/meals/history`, {
 
     return Math.round(bmr * selectedActivity.factor * bloodMod * selectedGoal.factor);
   })();
+
 
 const handleUpdateProfile = async () => {
   try {
@@ -284,7 +304,6 @@ const handleUpdateProfile = async () => {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       },
-      // 🔥 Передаємо точну, динамічно пораховану цифру калорій
       body: JSON.stringify({
         target_calories: dynamicKcal
       })
@@ -293,27 +312,17 @@ const handleUpdateProfile = async () => {
     const result = await response.json();
     if (response.ok) {
       setMealPlan(result.meal_plan);
-      showNotification("Раціон оновлено під твої калорії!", "success");
+
+      // 🔥 ОСЬ ЦЕЙ РЯДОК РЯТУЄ СИТУАЦІЮ!
+      // Відразу смикаємо бекенд, щоб забрати свіжу історію разом із новим планом
+      await fetchMealHistory();
+
+      showNotification("Раціон оновлено під твої поточні калорії!", "success");
     }
   } catch (e) {
     showNotification("Помилка генерації", "error");
   } finally {
     setIsGenerating(false);
-  }
-};
-
-  // Функція історії раціонів
-  const fetchMealHistory = async () => {
-  try {
-    const res = await fetch(`${API_BASE_URL}/meals/history`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setMealHistory(data.history);
-    }
-  } catch (e) {
-    console.error("Не вдалося завантажити історію", e);
   }
 };
 
@@ -755,11 +764,11 @@ const handleUpdateProfile = async () => {
                 <button onClick={() => { setSwapQuery(''); setSwapResult(null); }} className="text-gray-500 hover:text-red-600 font-black text-xs uppercase italic transition-colors">✕</button>
             )}
           </div>
-          
+
           <div className="flex gap-4 mb-8">
-            <input 
-              type="text" 
-              placeholder="Що замінити?" 
+            <input
+              type="text"
+              placeholder="Що замінити?"
               className="flex-1 p-6 bg-white/5 rounded-[2rem] font-black outline-none focus:ring-4 ring-red-600/50 text-white italic text-lg border border-white/10"
               value={swapQuery}
               onChange={(e) => setSwapQuery(e.target.value)}
@@ -767,7 +776,7 @@ const handleUpdateProfile = async () => {
             />
             <button onClick={handleSmartSwapAction} className="px-10 bg-white text-black rounded-[2rem] font-black uppercase text-sm hover:bg-gray-200 transition-all active:scale-95 shadow-xl">Замінити</button>
           </div>
-          
+
           {swapResult && (
             <div className="p-8 bg-red-600/10 border-l-8 border-red-600 rounded-[2.5rem] font-bold italic text-gray-200 animate-in slide-in-from-left-6 text-lg leading-relaxed backdrop-blur-md">
               {swapResult}
