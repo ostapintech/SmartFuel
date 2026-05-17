@@ -547,31 +547,35 @@ const handleUpdateProfile = async () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 flex-1 overflow-hidden">
         {/* Ліва частина: Список дат і калорій */}
         <div className="md:col-span-1 overflow-y-auto pr-2 space-y-3 border-r border-white/5">
-          {mealHistory.length === 0 ? (
-            <p className="text-white/30 text-xs uppercase italic p-4 text-center">Історія порожня</p>
-          ) : (
-            mealHistory.map((plan) => (
-              <div
-                key={plan.id}
-                onClick={() => setSelectedHistoryPlan(plan)}
-                className={`p-4 rounded-2xl border text-left cursor-pointer transition-all ${
-                  selectedHistoryPlan?.id === plan.id 
-                    ? 'bg-red-600 border-red-500 text-white' 
-                    : 'bg-white/5 border-white/10 text-white/80 hover:bg-white/10'
-                }`}
-              >
-                <p className="text-[10px] font-black opacity-50 uppercase">
-                  {plan.created_at ? new Date(plan.created_at).toLocaleDateString('uk-UA', {
-                    day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit'
-                  }) : "Колись"}
-                </p>
-                <p className="text-xl font-black italic mt-1">{plan.target_calories} ккал</p>
-                <p className="text-[9px] uppercase font-bold tracking-tight opacity-70 mt-1 truncate">
-                  {plan.allowed_products.join(', ')}
-                </p>
-              </div>
-            ))
-          )}
+        {mealHistory.length === 0 ? (
+  <p className="text-white/30 text-xs uppercase italic p-4 text-center">Історія порожня</p>
+) : (
+  // 🔥 Додаємо індекс (index) як другий аргумент у map
+  mealHistory.map((plan, index) => (
+    <div
+      // 🔥 Використовуємо plan.id, а якщо він undefined — беремо index
+      key={plan.id || index}
+      onClick={() => setSelectedHistoryPlan(plan)}
+      className={`p-4 rounded-2xl border text-left cursor-pointer transition-all ${
+        selectedHistoryPlan?.id === plan.id 
+          ? 'bg-red-600 border-red-500 text-white' 
+          : 'bg-white/5 border-white/10 text-white/80 hover:bg-white/10'
+      }`}
+    >
+      <p className="text-[10px] font-black opacity-50 uppercase">
+        {plan.created_at ? new Date(plan.created_at).toLocaleDateString('uk-UA', {
+          day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit'
+        }) : "Колись"}
+      </p>
+      <p className="text-xl font-black italic mt-1">{plan.target_calories} ккал</p>
+      <p className="text-[9px] uppercase font-bold tracking-tight opacity-70 mt-1 truncate">
+        {plan.allowed_products && plan.allowed_products.length > 0
+          ? plan.allowed_products.join(', ')
+          : 'Стандартний набір'}
+      </p>
+    </div>
+  ))
+)}
         </div>
 
         {/* Права частина: Перегляд обраного рецепту */}
