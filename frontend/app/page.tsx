@@ -82,6 +82,11 @@ export default function Home() {
   const [height, setHeight] = useState('');
   const [birthYear, setBirthYear] = useState('1995');
 
+  // Історія раціонів
+  const [mealHistory, setMealHistory] = useState<any[]>([]);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [selectedHistoryPlan, setSelectedHistoryPlan] = useState<any>(null);
+
   const showNotification = (msg: string, type: 'info' | 'error' | 'success' = 'info') => {
     setNotification({ msg, type });
     setTimeout(() => setNotification(null), 4000);
@@ -297,6 +302,22 @@ const handleUpdateProfile = async () => {
   }
 };
 
+  // Функція історії раціонів
+  const fetchMealHistory = async () => {
+  try {
+    const res = await fetch(`${API_BASE_URL}/meals/history`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setMealHistory(data.history);
+    }
+  } catch (e) {
+    console.error("Не вдалося завантажити історію", e);
+  }
+};
+
+// Викликаємо історію щоразу, коли користувач генерує новий план, щоб вона оновлювалася
   const handleSmartSwapAction = () => {
     if (!swapQuery) return;
     const q = swapQuery.toLowerCase();
@@ -469,6 +490,13 @@ const handleUpdateProfile = async () => {
             <button onClick={handleGeneratePlan} disabled={isGenerating} className="w-full py-9 bg-red-600 rounded-[3rem] font-black text-4xl transition-all hover:bg-red-500 shadow-[0_20px_50px_rgba(220,38,38,0.3)] active:scale-95 uppercase italic tracking-tighter">
               {isGenerating ? 'Синхронізація...' : 'Оновити раціон'}
             </button>
+                    <button
+          type="button"
+          onClick={() => { fetchMealHistory(); setIsHistoryOpen(true); }}
+          className="w-full mt-4 py-4 bg-white/5 hover:bg-white/10 text-white rounded-[2rem] font-bold uppercase italic tracking-wider text-sm transition-all border border-white/10"
+        >
+          📜 Переглянути історію раціонів ({mealHistory.length})
+        </button>
           </div>
         )}
 
@@ -500,7 +528,85 @@ const handleUpdateProfile = async () => {
           <button onClick={() => getAdvice('hunger')} className="bg-white/80 backdrop-blur-sm p-5 rounded-3xl shadow-lg font-black text-[11px] uppercase border-b-8 border-green-500 hover:-translate-y-2 transition-all active:translate-y-0">🍔 Голод</button>
           <button onClick={() => getAdvice('stress')} className="bg-white/80 backdrop-blur-sm p-5 rounded-3xl shadow-lg font-black text-[11px] uppercase border-b-8 border-purple-500 hover:-translate-y-2 transition-all active:translate-y-0">🧘 Стрес</button>
         </div>
+          {isHistoryOpen && (
+  <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[150] flex items-center justify-center p-4">
+    <div className="bg-gray-900 border border-white/10 w-full max-w-4xl h-[80vh] rounded-[3rem] p-8 md:p-12 flex flex-col relative overflow-hidden">
 
+      {/* Кнопка закриття */}
+      <button
+        onClick={() => { setIsHistoryOpen(false); setSelectedHistoryPlan(null); }}
+        className="absolute top-6 right-6 text-white/50 hover:text-white font-black text-xl bg-white/5 rounded-full w-10 h-10 flex items-center justify-center transition-colors"
+      >
+        ✕
+      </button>
+
+      <h2 className="text-4xl font-black italic uppercase tracking-tighter text-white mb-6">
+        Історія <span className="text-red-600 underline">раціонів</span>
+      </h2>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 flex-1 overflow-hidden">
+        {/* Ліва частина: Список дат і калорій */}
+        <div className="md:col-span-1 overflow-y-auto pr-2 space-y-3 border-r border-white/5">
+          {mealHistory.length === 0 ? (
+            <p className="text-white/30 text-xs uppercase italic p-4 text-center">Історія порожня</p>
+          ) : (
+            mealHistory.map((plan) => (
+              <div
+                key={plan.id}
+                onClick={() => setSelectedHistoryPlan(plan)}
+                className={`p-4 rounded-2xl border text-left cursor-pointer transition-all ${
+                  selectedHistoryPlan?.id === plan.id 
+                    ? 'bg-red-600 border-red-500 text-white' 
+                    : 'bg-white/5 border-white/10 text-white/80 hover:bg-white/10'
+                }`}
+              >
+                <p className="text-[10px] font-black opacity-50 uppercase">
+                  {plan.created_at ? new Date(plan.created_at).toLocaleDateString('uk-UA', {
+                    day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit'
+                  }) : "Колись"}
+                </p>
+                <p className="text-xl font-black italic mt-1">{plan.target_calories} ккал</p>
+                <p className="text-[9px] uppercase font-bold tracking-tight opacity-70 mt-1 truncate">
+                  {plan.allowed_products.join(', ')}
+                </p>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Права частина: Перегляд обраного рецепту */}
+        <div className="md:col-span-2 overflow-y-auto bg-black/40 border border-white/5 rounded-3xl p-6 text-white text-left">
+          {selectedHistoryPlan ? (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center border-b border-white/10 pb-4">
+                <h3 className="text-2xl font-black italic text-red-500 uppercase">План на {selectedHistoryPlan.target_calories} ккал</h3>
+                <button
+                  onClick={() => {
+                    // Хак: відновлюємо цей план на головний екран!
+                    setMealPlan(selectedHistoryPlan.meal_plan_text);
+                    setIsHistoryOpen(false);
+                    showNotification("Старий раціон завантажено на головний екран", "success");
+                  }}
+                  className="px-4 py-2 bg-white text-black font-black text-[10px] rounded-xl uppercase tracking-wider hover:bg-red-500 hover:text-white transition-all"
+                >
+                  Застосувати
+                </button>
+              </div>
+              {/* Рендеримо текст рецепту з ШІ */}
+              <p className="whitespace-pre-line text-sm font-medium text-gray-300 leading-relaxed">
+                {selectedHistoryPlan.meal_plan_text}
+              </p>
+            </div>
+          ) : (
+            <div className="h-full flex items-center justify-center text-white/30 text-xs font-black uppercase italic tracking-widest text-center">
+              👉 Обери раціон зі списку ліворуч для перегляду
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  </div>
+)}
         {/* СЕКЦІЯ AI ПОШУКУ ЇЖІ */}
         <section className="bg-white/90 backdrop-blur-2xl p-10 rounded-[4rem] shadow-2xl mb-16 border border-white relative overflow-hidden">
           <div className="flex justify-between items-center mb-10">
@@ -665,6 +771,7 @@ const handleUpdateProfile = async () => {
           )}
         </section>
       </div>
+
     </main>
   );
 }

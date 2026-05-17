@@ -129,3 +129,24 @@ async def get_user_history(current_user: dict = Depends(get_current_user)):
         item["_id"] = str(item["_id"])
 
     return {"user": current_user["email"], "history": history}
+
+
+@router.get("/meals_history")
+async def get_meal_history(current_user: dict = Depends(get_current_user)):
+    meals_collection = db_instance.db["user_meals"]
+
+    # Шукаємо всі плани за user_id та сортуємо їх: -1 означає від найновіших до найстаріших
+    cursor = meals_collection.find({"user_id": str(current_user["_id"])}).sort("created_at", -1)
+
+    history = []
+    async for doc in cursor:
+        history.append({
+            "id": str(doc["_id"]),
+            "target_calories": doc.get("target_calories", 2000),
+            "allowed_products": doc.get("allowed_products", []),
+            "meal_plan_text": doc.get("meal_plan_text", ""),
+            # Конвертуємо дату у рядок, якщо вона є об'єктом datetime
+            "created_at": doc.get("created_at").isoformat() if doc.get("created_at") else None
+        })
+
+    return {"history": history}
